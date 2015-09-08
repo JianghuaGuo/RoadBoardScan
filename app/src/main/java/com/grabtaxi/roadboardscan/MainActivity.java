@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity
     }
     @Override
     protected void onResume() {
+        Log.d(TAG, "onResume");
         super.onResume();
         showCaptureFragment();
     }
@@ -55,6 +56,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     protected void onPause() {
+        Log.d(TAG, "onPause");
         super.onPause();
     }
 
