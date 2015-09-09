@@ -44,7 +44,7 @@ public final class CameraManager {
 
 	private static final String TAG = CameraManager.class.getSimpleName();
 
-	private static final int MIN_FRAME_WIDTH = (int) (270 * GlobalVariables.SCREEN_DESITY);
+	private static final int MIN_FRAME_WIDTH = (int) (300 * GlobalVariables.SCREEN_DESITY);
 
 	private static final int MAX_FRAME_WIDTH = (int) (675 * GlobalVariables.SCREEN_DESITY); // 1080*5/8
 
