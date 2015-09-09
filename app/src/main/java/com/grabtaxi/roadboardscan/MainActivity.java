@@ -10,6 +10,7 @@ import android.view.MenuItem;
 
 import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.fragment.CaptureFragment;
+import com.grabtaxi.roadboardscan.fragment.CaptureFragmentForShot;
 import com.grabtaxi.roadboardscan.fragment.FragmentTag;
 
 public class MainActivity extends AppCompatActivity
@@ -41,7 +42,8 @@ public class MainActivity extends AppCompatActivity
     protected void onResume() {
         Log.d(TAG, "onResume");
         super.onResume();
-        showCaptureFragment();
+//        showCaptureFragment();
+        showCaptureFragmentForShot();
     }
 
     private void showCaptureFragment() {
@@ -52,7 +54,13 @@ public class MainActivity extends AppCompatActivity
         transaction.commit();
     }
 
-
+    private void showCaptureFragmentForShot() {
+        CaptureFragmentForShot captureFrag = new CaptureFragmentForShot();
+        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+        transaction.add(R.id.main_content, captureFrag,
+                FragmentTag.CaptureFragmentForShot);
+        transaction.commit();
+    }
 
     @Override
     protected void onPause() {
