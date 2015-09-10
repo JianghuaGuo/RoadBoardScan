@@ -32,14 +32,14 @@
 
         <!-- 扫描窗口 -->
 
-        <com.grabtaxi.roadboardscan.zxing.ViewfinderView
+        <com.grabtaxi.roadboardscan.zxing.ViewfinderViewForShot
             android:id="@+id/viewfinder_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"/>
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="420dp"
+            android:layout_marginTop="350dp"
             android:layout_gravity="center_horizontal"
             android:gravity="center_horizontal"
             android:orientation="vertical">
@@ -48,10 +48,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:text="对准路牌，点击OK进行拍照"
+                android:text="Put the road indicator in the rect area, and touch screen to auto focus, click OK when it is clear"
                 android:textColor="@android:color/white"
                 android:textSize="16sp"/>
-            <TextView
+            <Button
                 android:id="@+id/capture_shot"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -78,7 +78,7 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
             android:gravity="center"
-            android:text="采集路牌"
+            android:text="RoadIndicatorScan"
             android:textColor="@android:color/white"
             android:textSize="@dimen/common_title_text_size"/>
 
