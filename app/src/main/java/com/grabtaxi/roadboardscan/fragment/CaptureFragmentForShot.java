@@ -1,23 +1,18 @@
 package com.grabtaxi.roadboardscan.fragment;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
+import android.app.Service;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Matrix;
-import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
-import android.os.AsyncTask;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Message;
-import android.text.TextUtils;
-import android.util.Base64;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -30,39 +25,18 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.Result;
-import com.google.zxing.ResultPoint;
 import com.grabtaxi.roadboardscan.R;
-import com.grabtaxi.roadboardscan.zxing.BeepManager;
-import com.grabtaxi.roadboardscan.zxing.CaptureActivityHandler;
-import com.grabtaxi.roadboardscan.zxing.InactivityTimer;
 import com.grabtaxi.roadboardscan.zxing.ViewfinderViewForShot;
-import com.grabtaxi.roadboardscan.zxing.camera.CameraManager;
-import com.grabtaxi.roadboardscan.zxing.result.ResultHandler;
-import com.grabtaxi.roadboardscan.zxing.result.ResultHandlerFactory;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.security.KeyFactory;
-import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-
-import javax.crypto.Cipher;
 
 public class CaptureFragmentForShot extends BaseFragment implements
         SurfaceHolder.Callback
@@ -76,15 +50,6 @@ public class CaptureFragmentForShot extends BaseFragment implements
     private TextView captureDesc;
     private Button captureShot;
 
-    private boolean hasSurface;
-    private int cameraPosition = 1;//0代表前置摄像头，1代表后置摄像头
-
-    /**
-     * 活动监控器。如果手机没有连接电源线，那么当相机开启后如果一直处于不被使用状态则该服务会将当前fragment关闭。
-     * 活动监控器全程监控扫描活跃状态，与CaptureFragment生命周期相同.每一次扫描过后都会重置该监控，即重新倒计时。
-     */
-    private InactivityTimer inactivityTimer;
-
     public ViewfinderViewForShot getViewfinderView()
     {
         return viewfinderView;
@@ -95,10 +60,9 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
-        // 在扫描功能开启后，保持屏幕处于点亮状态
+        // 保持屏幕处于点亮状态
         Window window = getActivity().getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        // 全屏扫描
         window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
     }
 
@@ -120,7 +84,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
                 if (camera != null) {
                     try
                     {
-                        camera.takePicture(null, null, new MyPictureCallback());//将拍摄到的照片给自定义的对象
+                        camera.takePicture(shutter, null, new MyPictureCallback());
                     }catch(Exception e){
                         e.printStackTrace();
                     }
@@ -133,17 +97,14 @@ public class CaptureFragmentForShot extends BaseFragment implements
             @Override
             public boolean onTouch(View v, MotionEvent event)
             {
-                if (camera != null){
+                if (camera != null)
+                {
                     camera.autoFocus(null);
                 }
                 return false;
             }
         });
         viewfinderView = (ViewfinderViewForShot) view.findViewById(R.id.viewfinder_view);
-
-        // 这里仅仅是对各个组件进行简单的创建动作，真正的初始化动作放在onResume中
-        hasSurface = false;
-        inactivityTimer = new InactivityTimer(getActivity());
         return view;
     }
 
@@ -187,18 +148,10 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
         Log.i(TAG, "onResume");
         super.onResume();
-
-        // 摄像头预览功能必须借助SurfaceView，因此也需要在一开始对其进行初始化
-        // 如果需要了解SurfaceView的原理，参考:http://blog.csdn.net/luoshengyang/article/details/8661317
         SurfaceHolder surfaceHolder = surfaceView.getHolder();
         surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);//surfaceview不维护自己的缓冲区，等待屏幕渲染引擎将内容推送到用户面前
-        if (!hasSurface)
-        {
-            surfaceHolder.addCallback(this);
-        }
+        surfaceHolder.addCallback(this);
 
-        // 恢复活动监控器
-        inactivityTimer.onResume();
     }
 
     @Override
@@ -206,41 +159,25 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
         Log.i(TAG, "onPause");
 
-        // 暂停活动监控器
-        inactivityTimer.onPause();
-
-        if (!hasSurface)
-        {
-            SurfaceHolder surfaceHolder = surfaceView.getHolder();
-            surfaceHolder.removeCallback(this);
-        }
+        SurfaceHolder surfaceHolder = surfaceView.getHolder();
+        surfaceHolder.removeCallback(this);
         super.onPause();
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder)
     {
-        if (holder == null)
-        {
-            Log.e(TAG,
-                    "*** WARNING *** surfaceCreated() gave us a null surface!");
-        }
-
-        if (!hasSurface) {
-            hasSurface = true;
-        }
         try
         {
-            if (camera != null) {
-                camera.stopPreview();
-                camera.release();
-            }
             camera = Camera.open(); // 打开摄像头
-            camera.setPreviewDisplay(holder); // 设置用于显示拍照影像的SurfaceHolder对象
-//            camera.setDisplayOrientation(getPreviewDegree(getActivity()));
-            camera.startPreview(); // 开始预览
+            try
+            {
+                camera.setPreviewDisplay(holder); // 设置用于显示拍照影像的SurfaceHolder对象
+            }catch (IOException e){
+                camera.release();
+                camera = null;
+            }
             camera.setDisplayOrientation(90);
-            camera.autoFocus(null);
             drawViewfinder();
         } catch (Exception e)
         {
@@ -251,7 +188,6 @@ public class CaptureFragmentForShot extends BaseFragment implements
     @Override
     public void surfaceDestroyed(SurfaceHolder holder)
     {
-        hasSurface = false;
         if (camera != null)
         {
             //当surfaceview关闭时，关闭预览并释放资源
@@ -270,64 +206,44 @@ public class CaptureFragmentForShot extends BaseFragment implements
             return ;
         }
 
-        //先停止Camera的预览
-        try{
-            camera.stopPreview();
-        }catch(Exception e){
-            e.printStackTrace();
-        }
-
-        //这里可以做一些我们要做的变换。
-
-        //重新开启Camera的预览功能
-        try{
-            camera.setPreviewDisplay(holder);
-            camera.startPreview();
-        }catch(Exception e){
-            e.printStackTrace();
-        }
-        if (camera != null)
+        if(camera != null)
         {
-            //设置参数，并拍照
-            Camera.Parameters params = camera.getParameters();
-            params.setPictureFormat(PixelFormat.JPEG);//图片格式
-            params.setPreviewSize(1280, 720);//图片大小
-            params.setPictureSize(1280, 720);
-            params.setJpegQuality(100);
-            camera.setParameters(params);//将参数设置到我的camera
-        }
-    }
+            //这里可以做一些我们要做的变换。
+            //重新开启Camera的预览功能
+            try{
+                Camera.Parameters params = camera.getParameters();
+                params.setPictureFormat(PixelFormat.JPEG);//图片格式
+                params.setPreviewSize(1280, 720);//图片大小
+                params.setPictureSize(1280, 720);
+                params.setJpegQuality(100);
+                camera.setParameters(params);//将参数设置到我的camera
+                camera.startPreview(); // 开始预览
+                // 开始对焦
+                camera.autoFocus(null);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
 
-    // 提供一个静态方法，用于根据手机方向获得相机预览画面旋转的角度
-    public static int getPreviewDegree(Activity activity)
-    {
-        // 获得手机的方向
-        int rotation = activity.getWindowManager().getDefaultDisplay()
-                .getRotation();
-        int degree = 0;
-        // 根据手机的方向计算相机预览画面应该选择的角度
-        switch (rotation)
-        {
-            case Surface.ROTATION_0:
-                degree = 90;
-                break;
-            case Surface.ROTATION_90:
-                degree = 0;
-                break;
-            case Surface.ROTATION_180:
-                degree = 270;
-                break;
-            case Surface.ROTATION_270:
-                degree = 180;
-                break;
         }
-        return degree;
     }
 
     public void drawViewfinder()
     {
         viewfinderView.drawViewfinder();
     }
+
+    Camera.ShutterCallback shutter = new Camera.ShutterCallback() {
+
+        @Override
+        public void onShutter() {
+                // 发出提示用户的声音
+//                new ToneGenerator(AudioManager.STREAM_SYSTEM,
+//                        ToneGenerator.MAX_VOLUME).startTone(ToneGenerator.TONE_PROP_BEEP);
+                Vibrator vibrator = (Vibrator) getActivity()
+                        .getSystemService(Service.VIBRATOR_SERVICE);
+                vibrator.vibrate(100);
+        }
+    };
 
     /**
      * 重构照相类
@@ -342,11 +258,12 @@ public class CaptureFragmentForShot extends BaseFragment implements
         {
             try
             {
-
                 saveToSDCard(data); // 保存图片到sd卡中
+                camera.stopPreview();//关闭预览 处理数据
+                camera.startPreview();//数据处理完后继续开始预览
+                camera.autoFocus(null);
                 Toast.makeText(getActivity(), "success",
                         Toast.LENGTH_SHORT).show();
-                camera.startPreview(); // 拍完照后，重新开始预览
             } catch (Exception e)
             {
                 e.printStackTrace();
@@ -395,10 +312,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
         FileOutputStream outputStream = new FileOutputStream(jpgFile); // 文件输出流
         b.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
         outputStream.flush();
-        outputStream.write(data); // 写入sd卡中
         outputStream.close(); // 关闭输出流
-        camera.stopPreview();//关闭预览 处理数据
-        camera.startPreview();//数据处理完后继续开始预览
         b.recycle();//回收bitmap空间
     }
 
@@ -421,13 +335,16 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
         Log.i(TAG, "onDestroy");
         super.onDestroy();
-        // 停止活动监控器
-        inactivityTimer.shutdown();
         // 	退出全屏模式
         WindowManager.LayoutParams attrs = getActivity().getWindow().getAttributes();
         attrs.flags &= (~WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getActivity().getWindow().setAttributes(attrs);
         getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        if (camera != null) {
+            camera.stopPreview();
+            camera.release();
+            camera = null;
+        }
         super.onDestroy();
     }
 

@@ -43,6 +43,11 @@ import com.grabtaxi.roadboardscan.zxing.camera.open.OpenCameraInterface;
 public final class CameraManager {
 
 	private static final String TAG = CameraManager.class.getSimpleName();
+	
+//	private static final int MIN_FRAME_WIDTH = 240;
+//	private static final int MIN_FRAME_HEIGHT = 240;
+//	private static final int MAX_FRAME_WIDTH = 1200; // = 5/8 * 1920
+// private static final int MAX_FRAME_HEIGHT = 675; // = 5/8 * 1080
 
 	private static final int MIN_FRAME_WIDTH = (int) (300 * GlobalVariables.SCREEN_DESITY);
 
@@ -94,12 +99,8 @@ public final class CameraManager {
 			throws IOException {
 		Camera theCamera = camera;
 		if (theCamera == null) {
-			// 获取手机背面的摄像头
-			if (requestedCameraId >= 0) {
-				theCamera = OpenCameraInterface.open(requestedCameraId);
-			} else {
-				theCamera = OpenCameraInterface.open();
-			}
+			// 获取手机摄像头
+      		theCamera = OpenCameraInterface.open(requestedCameraId);
 			if (theCamera == null) {
 				throw new IOException();
 			}
@@ -265,12 +266,16 @@ public final class CameraManager {
 				return null;
 			}
 
+			// int width = findDesiredDimensionInRange(screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH);
+			// int height = findDesiredDimensionInRange(screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT);
+
 			int width = findDesiredDimensionInRange(screenResolution.x,
 					MIN_FRAME_WIDTH, MAX_FRAME_WIDTH);
 			// 将扫描框设置成一个正方形
 			int height = width ;
 			Log.d(TAG, "getFramingRect width:" + width);
 			int leftOffset = (screenResolution.x - width) / 2;
+			// int topOffset = (screenResolution.y - height) / 2;
 			// 距离顶部80dp
 			int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
 			framingRect = new Rect(leftOffset, topOffset, leftOffset + width,
@@ -320,6 +325,10 @@ public final class CameraManager {
 				// Called early, before init even finished
 				return null;
 			}
+			//rect.left = rect.left * cameraResolution.x / screenResolution.x;
+			// rect.right = rect.right * cameraResolution.x / screenResolution.x;
+			// rect.top = rect.top * cameraResolution.y / screenResolution.y;
+			// rect.bottom = rect.bottom * cameraResolution.y / screenResolution.y;
 			// 由于修改了屏幕的初始方向，手机分辨率由原来的width*height变为height*width形式，但是相机的分辨率则是固定的，因此这里需做些调整以计算出正确的缩放比率。
 			rect.left = rect.left * cameraResolution.y / screenResolution.x;
 			rect.right = rect.right * cameraResolution.y / screenResolution.x;
@@ -367,6 +376,7 @@ public final class CameraManager {
 				height = screenResolution.y;
 			}
 			int leftOffset = (screenResolution.x - width) / 2;
+			//int topOffset = (screenResolution.y - height) / 2;
 			// 距离顶部80dp
 			int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
 			framingRect = new Rect(leftOffset, topOffset, leftOffset + width,

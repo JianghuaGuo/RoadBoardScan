@@ -9,16 +9,8 @@ import java.io.InputStreamReader;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Locale;
 
 import javax.crypto.Cipher;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -47,17 +39,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.Result;
 import com.google.zxing.ResultPoint;
 import com.grabtaxi.roadboardscan.R;
-import com.grabtaxi.roadboardscan.MainActivity;
-import com.grabtaxi.roadboardscan.zxing.AmbientLightManager;
 import com.grabtaxi.roadboardscan.zxing.BeepManager;
 import com.grabtaxi.roadboardscan.zxing.CaptureActivityHandler;
-import com.grabtaxi.roadboardscan.zxing.InactivityTimer;
 import com.grabtaxi.roadboardscan.zxing.ViewfinderView;
 import com.grabtaxi.roadboardscan.zxing.camera.CameraManager;
 import com.grabtaxi.roadboardscan.zxing.result.ResultHandler;
@@ -98,12 +86,6 @@ SurfaceHolder.Callback {
 	private View resultView;
 
 	private boolean hasSurface;
-
-	/**
-	 * 活动监控器。如果手机没有连接电源线，那么当相机开启后如果一直处于不被使用状态则该服务会将当前fragment关闭。
-	 * 活动监控器全程监控扫描活跃状态，与CaptureFragment生命周期相同.每一次扫描过后都会重置该监控，即重新倒计时。
-	 */
-	private InactivityTimer inactivityTimer;
 
 	/**
 	 * 声音震动管理器。如果扫描成功后可以播放一段音频，也可以震动提醒，可以通过配置来决定扫描成功后的行为。
@@ -176,7 +158,6 @@ SurfaceHolder.Callback {
 		
 		// 这里仅仅是对各个组件进行简单的创建动作，真正的初始化动作放在onResume中
 		hasSurface = false;
-		inactivityTimer = new InactivityTimer(getActivity());
 		beepManager = new BeepManager(getActivity());
 //		ambientLightManager = new AmbientLightManager(getActivity());
 		return view;
@@ -256,9 +237,6 @@ SurfaceHolder.Callback {
 
 		// 启动闪光灯调节器
 //		ambientLightManager.start(cameraManager);
-
-		// 恢复活动监控器
-		inactivityTimer.onResume();
 	}
 
 	@Override
@@ -268,9 +246,6 @@ SurfaceHolder.Callback {
 			handler.quitSynchronously();
 			handler = null;
 		}
-
-		// 暂停活动监控器
-		inactivityTimer.onPause();
 
 		// 停止闪光灯控制器
 //		ambientLightManager.stop();
@@ -342,7 +317,6 @@ SurfaceHolder.Callback {
 	 *            A greyscale bitmap of the camera data which was decoded.
 	 */
 	public void handleDecodeSuccess(Result rawResult, Bitmap barcode, float scaleFactor) {
-		inactivityTimer.onActivity();
 		Log.i(TAG, "handleDecodeSuccess");
 		ResultHandler resultHandler = ResultHandlerFactory.makeResultHandler(
 				getActivity(), rawResult);
@@ -655,8 +629,6 @@ SurfaceHolder.Callback {
 	public void onDestroy() {
 		Log.i(TAG, "onDestroy");
 		super.onDestroy();
-		// 停止活动监控器
-		inactivityTimer.shutdown();
 		// 	退出全屏模式
 		WindowManager.LayoutParams attrs = getActivity().getWindow().getAttributes();
 		attrs.flags &= (~WindowManager.LayoutParams.FLAG_FULLSCREEN);
