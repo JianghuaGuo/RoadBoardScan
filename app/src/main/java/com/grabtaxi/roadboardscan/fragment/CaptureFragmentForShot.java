@@ -14,6 +14,8 @@ import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
 import android.os.Vibrator;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -284,16 +286,15 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
 
         @Override
-        public void onPictureTaken(final byte[] data, Camera camera)
+        public void onPictureTaken(byte[] data, Camera camera)
         {
             try
             {
-                saveToSDCard(data); // 保存图片到sd卡中
+                // 保存图片到sd卡中
+                new FileThread(data).start();
                 camera.stopPreview();//关闭预览 处理数据
                 camera.startPreview();//数据处理完后继续开始预览
                 camera.autoFocus(null);
-                Toast.makeText(getActivity(), "success",
-                        Toast.LENGTH_SHORT).show();
             } catch (Exception e)
             {
                 e.printStackTrace();
@@ -301,75 +302,119 @@ public class CaptureFragmentForShot extends BaseFragment implements
         }
     }
 
-    /**
-     * 检验是否有SD卡
-     *
-     * @true or false
-     */
-    public static boolean isHaveSDCard()
-    {
-        return Environment.MEDIA_MOUNTED.equals(Environment
-                .getExternalStorageState());
-    }
-
-    /**
-     * 将拍下来的照片存放在SD卡中
-     *
-     * @param data
-     * @throws IOException
-     */
-    public void saveToSDCard(byte[] data) throws IOException
-    {
-        Log.e("gjh", "" + data.length);
-        //剪切为正方形
-//        Bitmap b = byteToBitmap(data);
-        Matrix matrix = new Matrix();
-        matrix.reset();
-        matrix.postRotate(90);
-        Bitmap origin = BitmapFactory.decodeByteArray(data, 0, data.length);
-        Bitmap b =  Bitmap.createBitmap(origin, 0, 0, origin.getWidth(),
-                origin.getHeight(), matrix, true);
-
-        int rectWidth = (int) (300 * GlobalVariables.SCREEN_DESITY);
-        int rectHeight = (int) (60 * GlobalVariables.SCREEN_DESITY);
-        int rectMargin = (int) (10 * GlobalVariables.SCREEN_DESITY);
-        int leftOffset = (GlobalVariables.SCREEN_WIDTH - rectWidth) / 2;
-        int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
-
-//        final Bitmap topBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3, rectWidth * 2/3, rectHeight * 2/3);
-        final Bitmap topBmp = Bitmap.createBitmap(b, leftOffset, topOffset, rectWidth, rectHeight);
-        isValidIndicator(topBmp);
-
-        //生成文件
-        Date date = new Date();
-        SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss"); // 格式化时间
-        String topFilename = format.format(date) + "top.jpg";
-        File fileFolder = new File(Environment.getExternalStorageDirectory() + File.separator + "roadboard" + File.separator);
-        if (!fileFolder.exists())
-        { // 如果目录不存在，则创建一个名为"finger"的目录
-            fileFolder.mkdir();
+    private Handler handler = new Handler(){
+        @Override
+        public void handleMessage(Message msg)
+        {
+            super.handleMessage(msg);
+            if (msg.what == 100)
+            {
+                String[] obj = (String[])msg.obj;
+                new UploadHeaderRequestTask(getActivity()).execute(obj[0]);
+                new UploadHeaderRequestTask(getActivity()).execute(obj[1]);
+            } else if (msg.what == -100){
+                Toast.makeText(getActivity(),"Fail to save file.",Toast.LENGTH_SHORT).show();
+            }
         }
-        File topFile = new File(fileFolder, topFilename);
-        FileOutputStream topOutputStream = new FileOutputStream(topFile); // 文件输出流
-        topBmp.compress(Bitmap.CompressFormat.JPEG, 100, topOutputStream);
-        topOutputStream.flush();
-        topOutputStream.close(); // 关闭输出流
-        topBmp.recycle();//回收bitmap空间
+    };
+    private class FileThread extends Thread
+    {
+        private byte[] data = null;
+        private String topFilePath;
+        private String bottomFilePath;
 
-//        final Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3 + rectHeight * 2/3 + rectMargin * 2/3, rectWidth * 2/3, rectHeight * 2/3);
-        final Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset, topOffset + rectHeight + rectMargin, rectWidth, rectHeight);
-        isValidIndicator(bottomBmp);
-        String bottomFilename = format.format(date) + "bottom.jpg";
-        File bottomFile = new File(fileFolder, bottomFilename);
-        FileOutputStream bottomOutputStream = new FileOutputStream(bottomFile); // 文件输出流
-        bottomBmp.compress(Bitmap.CompressFormat.JPEG, 100, bottomOutputStream);
-        bottomOutputStream.flush();
-        bottomOutputStream.close(); // 关闭输出流
-        bottomBmp.recycle();//回收bitmap空间
-        new UploadHeaderRequestTask(getActivity()).execute(topFile.getAbsolutePath());
-        new UploadHeaderRequestTask(getActivity()).execute(bottomFile.getAbsolutePath());
+        public FileThread(byte[] dt)
+        {
+            this.data = dt;
+        }
+
+        @Override
+        public void run()
+        {
+            super.run();
+            try
+            {
+                saveToSDCard(data);
+                Message msg = new Message();
+                msg.what = 100;
+                msg.obj = new String[]{topFilePath,bottomFilePath};
+                handler.sendMessage(msg);
+            } catch (Exception e)
+            {
+                e.printStackTrace();
+                handler.sendEmptyMessage(-100);
+            }
+
+        }
+
+        /**
+         * 将拍下来的照片存放在SD卡中
+         *
+         * @param data
+         * @throws IOException
+         */
+        private void saveToSDCard(byte[] data) throws IOException
+        {
+            Log.e("gjh", "" + data.length);
+            //剪切为正方形
+//        Bitmap b = byteToBitmap(data);
+            Matrix matrix = new Matrix();
+            matrix.reset();
+            matrix.postRotate(90);
+            Bitmap origin = BitmapFactory.decodeByteArray(data, 0, data.length);
+            Bitmap b = Bitmap.createBitmap(origin, 0, 0, origin.getWidth(),
+                    origin.getHeight(), matrix, true);
+
+            int rectWidth = (int) (300 * GlobalVariables.SCREEN_DESITY);
+            int rectHeight = (int) (60 * GlobalVariables.SCREEN_DESITY);
+            int rectMargin = (int) (10 * GlobalVariables.SCREEN_DESITY);
+            int leftOffset = (GlobalVariables.SCREEN_WIDTH - rectWidth) / 2;
+            int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
+
+//          Bitmap topBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3, rectWidth * 2/3, rectHeight * 2/3);
+            Bitmap topBmp = Bitmap.createBitmap(b, leftOffset, topOffset, rectWidth, rectHeight);
+            isValidIndicator(topBmp);
+
+            //生成文件
+            Date date = new Date();
+            SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss"); // 格式化时间
+            String topFileName = format.format(date) + "top.jpg";
+            File fileFolder = new File(Environment.getExternalStorageDirectory() + File.separator + "roadboard" + File.separator);
+            if (!fileFolder.exists())
+            { // 如果目录不存在，则创建一个名为"finger"的目录
+                fileFolder.mkdir();
+            }
+            File topFile = new File(fileFolder, topFileName);
+            topFilePath = topFile.getAbsolutePath();
+            FileOutputStream topOutputStream = new FileOutputStream(topFile); // 文件输出流
+            topBmp.compress(Bitmap.CompressFormat.JPEG, 100, topOutputStream);
+            topOutputStream.flush();
+            topOutputStream.close(); // 关闭输出流
+            topBmp.recycle();//回收bitmap空间
+
+//          Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3 + rectHeight * 2/3 + rectMargin * 2/3, rectWidth * 2/3, rectHeight * 2/3);
+            Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset, topOffset + rectHeight + rectMargin, rectWidth, rectHeight);
+            isValidIndicator(bottomBmp);
+            String bottomFileName = format.format(date) + "bottom.jpg";
+            File bottomFile = new File(fileFolder, bottomFileName);
+            bottomFilePath = bottomFile.getAbsolutePath();
+            FileOutputStream bottomOutputStream = new FileOutputStream(bottomFile); // 文件输出流
+            bottomBmp.compress(Bitmap.CompressFormat.JPEG, 100, bottomOutputStream);
+            bottomOutputStream.flush();
+            bottomOutputStream.close(); // 关闭输出流
+            bottomBmp.recycle();//回收bitmap空间
+        }
+        /**
+         * 检验是否有SD卡
+         *
+         * @true or false
+         */
+        private boolean isHaveSDCard()
+        {
+            return Environment.MEDIA_MOUNTED.equals(Environment
+                    .getExternalStorageState());
+        }
     }
-
 
     private boolean isValidIndicator(Bitmap bmp){
         int w = bmp.getWidth();
