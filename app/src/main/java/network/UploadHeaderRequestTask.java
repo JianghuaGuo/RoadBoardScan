@@ -1,8 +1,7 @@
-package uploadheader;
+package network;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.Map;
 
 import android.content.Context;
 import android.os.AsyncTask;
