@@ -25,7 +25,7 @@ import android.util.Log;
 /**
  * 该类的作用是在预览界面加载好后向ui线程发消息
  */
-final class PreviewCallback implements Camera.PreviewCallback {
+public final class PreviewCallback implements Camera.PreviewCallback {
 
 	private static final String TAG = PreviewCallback.class.getSimpleName();
 

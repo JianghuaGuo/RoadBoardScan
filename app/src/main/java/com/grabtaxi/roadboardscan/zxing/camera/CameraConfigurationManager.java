@@ -60,7 +60,7 @@ final class CameraConfigurationManager {
 	 */
 	void initFromCameraParameters(Camera camera) {
 		Camera.Parameters parameters = camera.getParameters();
-		Log.d(TAG, "Default preview format: " + parameters.getPreviewFormat()
+		Log.i(TAG, "Default preview format: " + parameters.getPreviewFormat()
 				+ '/' + parameters.get("preview-format"));
 		WindowManager manager = (WindowManager) context
 				.getSystemService(Context.WINDOW_SERVICE);
@@ -133,9 +133,7 @@ final class CameraConfigurationManager {
 			cameraResolution.y = afterSize.height;
 		}
 		// 调整相机preview的时钟方向与手机竖屏的自然方向一致。该方法必须在startPreview之前被调用，在预览界面展示出来后设置是无效的。
-		// 兼容2.1
-		// camera.setDisplayOrientation(90);
-		setDisplayOrientation(camera, 90);
+		 camera.setDisplayOrientation(90);
 	}
 
 	Point getCameraResolution() {
@@ -172,22 +170,4 @@ final class CameraConfigurationManager {
 			CameraConfigurationUtils.setBestExposure(parameters, newSetting);
 		}
 	}
-
-	/**
-	 * compatible 1.6
-	 * 
-	 * @param camera
-	 * @param angle
-	 */
-	protected void setDisplayOrientation(Camera camera, int angle) {
-		Method downPolymorphic;
-		try {
-			downPolymorphic = camera.getClass().getMethod(
-					"setDisplayOrientation", new Class[] { int.class });
-			if (downPolymorphic != null)
-				downPolymorphic.invoke(camera, new Object[] { angle });
-		} catch (Exception e1) {
-		}
-	}
-
 }

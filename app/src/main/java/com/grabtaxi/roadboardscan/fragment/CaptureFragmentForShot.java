@@ -5,8 +5,10 @@ import android.app.Service;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.hardware.Camera;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
@@ -30,13 +32,21 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.grabtaxi.roadboardscan.R;
+import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.zxing.ViewfinderViewForShot;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+
+import uploadheader.UploadHeaderRequestTask;
 
 public class CaptureFragmentForShot extends BaseFragment implements
         SurfaceHolder.Callback
@@ -212,9 +222,29 @@ public class CaptureFragmentForShot extends BaseFragment implements
             //重新开启Camera的预览功能
             try{
                 Camera.Parameters params = camera.getParameters();
+                Log.e("gjh", "SupportedPictureFormats:" + params.getSupportedPictureFormats());
+                List rawSupportedPictureSizes = params.getSupportedPictureSizes();
+                StringBuilder strPictureSize = new StringBuilder();
+                Iterator pictureSizeIter = rawSupportedPictureSizes.iterator();
+
+                while(pictureSizeIter.hasNext()) {
+                    Camera.Size it = (Camera.Size)pictureSizeIter.next();
+                    strPictureSize.append(it.width).append('x').append(it.height).append(' ');
+                }
+                Log.e("gjh", "SupportedPictureSizes:" + strPictureSize);
+                Log.e("gjh", "SupportedPreviewFormats:" + params.getSupportedPreviewFormats());
+                List rawSupportedPreviewSizes = params.getSupportedPreviewSizes();
+                StringBuilder strPreviewSize = new StringBuilder();
+                Iterator previewSizeIter = rawSupportedPreviewSizes.iterator();
+
+                while(previewSizeIter.hasNext()) {
+                    Camera.Size it = (Camera.Size)previewSizeIter.next();
+                    strPreviewSize.append(it.width).append('x').append(it.height).append(' ');
+                }
+                Log.e("gjh", "SupportedPreviewSizes:" + strPreviewSize);
                 params.setPictureFormat(PixelFormat.JPEG);//图片格式
-                params.setPreviewSize(1280, 720);//图片大小
-                params.setPictureSize(1280, 720);
+                params.setPreviewSize(1920, 1080);//图片大小
+                params.setPictureSize(1920, 1080);
                 params.setJpegQuality(100);
                 camera.setParameters(params);//将参数设置到我的camera
                 camera.startPreview(); // 开始预览
@@ -254,7 +284,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
 
         @Override
-        public void onPictureTaken(byte[] data, Camera camera)
+        public void onPictureTaken(final byte[] data, Camera camera)
         {
             try
             {
@@ -299,21 +329,81 @@ public class CaptureFragmentForShot extends BaseFragment implements
         Bitmap origin = BitmapFactory.decodeByteArray(data, 0, data.length);
         Bitmap b =  Bitmap.createBitmap(origin, 0, 0, origin.getWidth(),
                 origin.getHeight(), matrix, true);
+
+        int rectWidth = (int) (300 * GlobalVariables.SCREEN_DESITY);
+        int rectHeight = (int) (60 * GlobalVariables.SCREEN_DESITY);
+        int rectMargin = (int) (10 * GlobalVariables.SCREEN_DESITY);
+        int leftOffset = (GlobalVariables.SCREEN_WIDTH - rectWidth) / 2;
+        int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
+
+//        final Bitmap topBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3, rectWidth * 2/3, rectHeight * 2/3);
+        final Bitmap topBmp = Bitmap.createBitmap(b, leftOffset, topOffset, rectWidth, rectHeight);
+        isValidIndicator(topBmp);
+
         //生成文件
         Date date = new Date();
         SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss"); // 格式化时间
-        String filename = format.format(date) + ".jpg";
+        String topFilename = format.format(date) + "top.jpg";
         File fileFolder = new File(Environment.getExternalStorageDirectory() + File.separator + "roadboard" + File.separator);
         if (!fileFolder.exists())
         { // 如果目录不存在，则创建一个名为"finger"的目录
             fileFolder.mkdir();
         }
-        File jpgFile = new File(fileFolder, filename);
-        FileOutputStream outputStream = new FileOutputStream(jpgFile); // 文件输出流
-        b.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-        outputStream.flush();
-        outputStream.close(); // 关闭输出流
-        b.recycle();//回收bitmap空间
+        File topFile = new File(fileFolder, topFilename);
+        FileOutputStream topOutputStream = new FileOutputStream(topFile); // 文件输出流
+        topBmp.compress(Bitmap.CompressFormat.JPEG, 100, topOutputStream);
+        topOutputStream.flush();
+        topOutputStream.close(); // 关闭输出流
+        topBmp.recycle();//回收bitmap空间
+
+//        final Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3 + rectHeight * 2/3 + rectMargin * 2/3, rectWidth * 2/3, rectHeight * 2/3);
+        final Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset, topOffset + rectHeight + rectMargin, rectWidth, rectHeight);
+        isValidIndicator(bottomBmp);
+        String bottomFilename = format.format(date) + "bottom.jpg";
+        File bottomFile = new File(fileFolder, bottomFilename);
+        FileOutputStream bottomOutputStream = new FileOutputStream(bottomFile); // 文件输出流
+        bottomBmp.compress(Bitmap.CompressFormat.JPEG, 100, bottomOutputStream);
+        bottomOutputStream.flush();
+        bottomOutputStream.close(); // 关闭输出流
+        bottomBmp.recycle();//回收bitmap空间
+        new UploadHeaderRequestTask(getActivity()).execute(topFile.getAbsolutePath());
+        new UploadHeaderRequestTask(getActivity()).execute(bottomFile.getAbsolutePath());
+    }
+
+
+    private boolean isValidIndicator(Bitmap bmp){
+        int w = bmp.getWidth();
+        int h = bmp.getHeight();
+        int valid = 0;
+        for (int i = 0 ; i < w; i ++){
+            for (int j = 0 ; j < h ; j ++){
+                int color = bmp.getPixel(i, j);
+                int[] argb = intToByteArray(color);
+                if ((10 < argb[1] && argb[1] < 50) && (150 < argb[2] && argb[2] < 250) && (100 < argb[3] && argb[3] <200))
+                {
+                    valid ++;
+                } else if ((200 < argb[1] && argb[1] < 255) && (200 < argb[2] && argb[2] < 255) && (200 < argb[3] && argb[3] < 255)){
+                    valid ++;
+                }
+            }
+        }
+        int percent = (valid * 100) / (w * h);
+        Log.e(TAG, "w:" + w + " h:" + h + " valid:" + valid + " percent:" + percent);
+        if (percent > 50){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    public static int[] intToByteArray(int i) {
+        int[] result = new int[4];
+        //由高位到低位
+        result[0] = ((i >> 24) & 0xFF);
+        result[1] = ((i >> 16) & 0xFF);
+        result[2] = ((i >> 8) & 0xFF);
+        result[3] = (i & 0xFF);
+        return result;
     }
 
     @Override

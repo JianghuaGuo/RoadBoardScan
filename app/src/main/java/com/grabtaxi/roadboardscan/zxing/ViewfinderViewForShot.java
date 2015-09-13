@@ -54,7 +54,6 @@ public final class ViewfinderViewForShot extends View {
 	 * 刷新界面的时间
 	 */
 	private static final long ANIMATION_DELAY = 10L;
-	private static final int OPAQUE = 0xFF;
 
 	/**
 	 * 四个绿色边角对应的长度
@@ -65,25 +64,12 @@ public final class ViewfinderViewForShot extends View {
 	 */
 	private static final int CORNER_WIDTH = 6;
 	private static final int L_WIDTH = 1;
-	/**
-	 * 扫描框中的中间线的宽度
-	 */
-	private static final int MIDDLE_LINE_WIDTH = 15;
-
-	/**
-	 * 中间那条线每次刷新移动的距离
-	 */
-	private static final int SPEEN_DISTANCE = 5;
 
 	/**
 	 * 画笔对象的引用
 	 */
 	private Paint paint;
-
-	private static final int MAX_RESULT_POINTS = 20;
 	private final int maskColor;
-	private final int resultColor;
-	private final int resultPointColor;
 
 	// This constructor is used when the class is built from an XML resource.
 	public ViewfinderViewForShot(Context context, AttributeSet attrs) {
@@ -95,9 +81,6 @@ public final class ViewfinderViewForShot extends View {
 		paint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		Resources resources = getResources();
 		maskColor = resources.getColor(R.color.viewfinder_mask);
-		resultColor = resources.getColor(R.color.result_view);
-
-		resultPointColor = resources.getColor(R.color.possible_result_points);
 	}
 
 	@SuppressLint("DrawAllocation")
