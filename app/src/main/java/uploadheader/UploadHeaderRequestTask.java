@@ -10,12 +10,12 @@ import android.util.Log;
 import android.widget.Toast;
 
 public class UploadHeaderRequestTask extends
-		AsyncTask<String, Void, String> {
+		AsyncTask<String, Void, HttpResult> {
 
 
 	private Context context;
 	// 请求地址
-	private String url="182.92.78.232:8000/upload/";
+	private String url="http://182.92.78.232:8000/upload/";
 
 
 	public UploadHeaderRequestTask(Context context) {
@@ -23,38 +23,22 @@ public class UploadHeaderRequestTask extends
 	}
 
 	@Override
-	protected String doInBackground(
+	protected HttpResult doInBackground(
 			String... params) {
 
-		String result = null;
-
+		HttpResult hr = null;
 		// 判断网络是否可用
 		if (HTTPHelper.checkNetWorkStatus(context)) {
 			String fielPath = params[0];
 			Log.e("gjh",fielPath);
 			File file = new File(fielPath);
-
 			HashMap<String, String> map = new HashMap<String, String>();
-			HttpResult hr = HTTPHelper.uploadFile(url, file);
+			hr = HTTPHelper.uploadFile(url, file);
 			Log.e("gjh","state:" + hr.getState());
 			Log.e("gjh","result:" + hr.getResult());
-			switch (hr.getState()) {
-			case HttpResult.INTERNET_SUCCESS:
-				Toast.makeText(context, "File upload success",
-						Toast.LENGTH_SHORT).show();
-				break;
-			case HttpResult.INTERNET_EXCEPTION:
-				Toast.makeText(context, hr.getErrorMsg(),
-						Toast.LENGTH_SHORT).show();
-				break;
-			default:
-				break;
-			}
-			return result;
-
+			return hr;
 		} else {
-
-			return result;
+			return hr;
 		}
 	}
 
@@ -64,8 +48,27 @@ public class UploadHeaderRequestTask extends
 	}
 
 	@Override
-	protected void onPostExecute(String result) {
+	protected void onPostExecute(HttpResult result) {
 		super.onPostExecute(result);
+		if (result != null)
+		{
+			switch (result.getState())
+			{
+				case HttpResult.INTERNET_SUCCESS:
+					Toast.makeText(context, "File upload success.",
+							Toast.LENGTH_SHORT).show();
+					break;
+				case HttpResult.INTERNET_EXCEPTION:
+					Toast.makeText(context, result.getErrorMsg(),
+							Toast.LENGTH_SHORT).show();
+					break;
+				default:
+					break;
+			}
+		} else {
+			Toast.makeText(context, "File upload failed.",
+					Toast.LENGTH_SHORT).show();
+		}
 	}
 
 	@Override
