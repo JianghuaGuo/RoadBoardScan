@@ -39,7 +39,9 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
-import network.UploadHeaderRequestTask;
+import network.HttpResult;
+import network.HttpResultListener;
+import network.UploadImageRequestTask;
 
 public class CaptureFragmentForShot extends BaseFragment implements
         SurfaceHolder.Callback
@@ -52,6 +54,8 @@ public class CaptureFragmentForShot extends BaseFragment implements
     // 提示
     private TextView captureDesc;
     private Button captureShot;
+    private TextView captureResult;
+    private boolean isProcessing = false;
 
     public ViewfinderViewForShot getViewfinderView()
     {
@@ -77,6 +81,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
         this.inflater = inflater;
         View view = inflater.inflate(R.layout.main_route_capture_frag_for_shot, container, false);
         captureDesc = (TextView) view.findViewById(R.id.capture_desc);
+        captureResult = (TextView) view.findViewById(R.id.capture_result);
         captureShot = (Button) view.findViewById(R.id.capture_shot);
         captureShot.setOnClickListener(new OnClickListener()
         {
@@ -87,9 +92,14 @@ public class CaptureFragmentForShot extends BaseFragment implements
                 if (camera != null) {
                     try
                     {
-                        camera.takePicture(shutter, null, new MyPictureCallback());
+                        if (!isProcessing)
+                        {
+                            isProcessing = true;
+                            camera.takePicture(shutter, null, new MyPictureCallback());
+                        }
                     }catch(Exception e){
                         e.printStackTrace();
+                        isProcessing = false;
                     }
                 }
             }
@@ -281,6 +291,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
         {
             try
             {
+                captureResult.setText("Uploading, Please waiting...");
                 // 保存图片到sd卡中
                 new FileThread(data).start();
                 camera.stopPreview();//关闭预览 处理数据
@@ -301,10 +312,71 @@ public class CaptureFragmentForShot extends BaseFragment implements
             if (msg.what == 100)
             {
                 String[] obj = (String[])msg.obj;
-                new UploadHeaderRequestTask(getActivity()).execute(obj[0]);
-                new UploadHeaderRequestTask(getActivity()).execute(obj[1]);
+                new UploadImageRequestTask(getActivity(), new HttpResultListener()
+                {
+                    @Override
+                    public void onBefore(){
+
+                    }
+                    @Override
+                    public void onSuccess(HttpResult result)
+                    {
+                        isProcessing = false;
+                        switch (result.getState())
+                        {
+                            case HttpResult.INTERNET_SUCCESS:
+                                Toast.makeText(getActivity(), "File upload success.",
+                                        Toast.LENGTH_SHORT).show();
+                                captureResult.setText("result:" + result.getResult().substring(3));
+                                break;
+                            case HttpResult.INTERNET_EXCEPTION:
+                                Toast.makeText(getActivity(), result.getErrorMsg(),
+                                        Toast.LENGTH_SHORT).show();
+                                captureResult.setText(result.getErrorMsg());
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+
+                    @Override
+                    public void onFailed(HttpResult result)
+                    {
+                        isProcessing = false;
+                        Toast.makeText(getActivity(), "File upload failed.",
+                                Toast.LENGTH_SHORT).show();
+                        captureResult.setText("File upload failed.");
+                    }
+
+                    @Override
+                    public void updateProgress(int progress)
+                    {
+
+                    }
+                }).execute(obj[0]);
+//                new UploadImageRequestTask(getActivity(), new HttpResultListener()
+//                {
+//                    @Override
+//                    public void onSuccess(HttpResult result)
+//                    {
+//
+//                    }
+//
+//                    @Override
+//                    public void onFailed(HttpResult result)
+//                    {
+//
+//                    }
+//
+//                    @Override
+//                    public void updateProgress(int progress)
+//                    {
+//
+//                    }
+//                }).execute(obj[1]);
             } else if (msg.what == -100){
                 Toast.makeText(getActivity(),"Fail to save file.",Toast.LENGTH_SHORT).show();
+                isProcessing = false;
             }
         }
     };

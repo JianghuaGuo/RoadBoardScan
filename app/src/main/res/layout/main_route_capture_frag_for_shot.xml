@@ -48,6 +48,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:gravity="center"
                 android:text="Put the road indicator in the rect area, and touch screen to auto focus, click OK when it is clear"
                 android:textColor="@android:color/white"
                 android:textSize="16sp"/>
@@ -59,6 +60,15 @@
                 android:text="OK"
                 android:textColor="@android:color/white"
                 android:textSize="16sp"/>
+
+            <TextView
+                android:id="@+id/capture_result"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:gravity="center"
+                android:textColor="@android:color/holo_red_dark"
+                android:textSize="20sp"/>
         </LinearLayout>
     </FrameLayout>
 

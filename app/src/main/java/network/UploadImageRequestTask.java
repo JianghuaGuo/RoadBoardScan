@@ -8,17 +8,19 @@ import android.os.AsyncTask;
 import android.util.Log;
 import android.widget.Toast;
 
-public class UploadHeaderRequestTask extends
+public class UploadImageRequestTask extends
 		AsyncTask<String, Void, HttpResult> {
 
 
 	private Context context;
+	private HttpResultListener listener;
 	// 请求地址
 	private String url="http://182.92.78.232:8000/upload/";
 
 
-	public UploadHeaderRequestTask(Context context) {
+	public UploadImageRequestTask(Context context, HttpResultListener listener) {
 		this.context = context;
+		this.listener = listener;
 	}
 
 	@Override
@@ -51,28 +53,24 @@ public class UploadHeaderRequestTask extends
 		super.onPostExecute(result);
 		if (result != null)
 		{
-			switch (result.getState())
+			if (this.listener != null)
 			{
-				case HttpResult.INTERNET_SUCCESS:
-					Toast.makeText(context, "File upload success.",
-							Toast.LENGTH_SHORT).show();
-					break;
-				case HttpResult.INTERNET_EXCEPTION:
-					Toast.makeText(context, result.getErrorMsg(),
-							Toast.LENGTH_SHORT).show();
-					break;
-				default:
-					break;
+				this.listener.onSuccess(result);
 			}
 		} else {
-			Toast.makeText(context, "File upload failed.",
-					Toast.LENGTH_SHORT).show();
+			if (this.listener != null)
+			{
+				this.listener.onFailed(null);
+			}
 		}
 	}
 
 	@Override
 	protected void onPreExecute() {
 		super.onPreExecute();
+		if (this.listener != null){
+			this.listener.onBefore();
+		}
 	}
 
 	@Override

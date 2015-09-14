@@ -9,8 +9,8 @@ public class HttpResult {
 	public static final int INTERNET_EXCEPTION = -1 ;
 	public static final int INTERNET_SUCCESS = 1 ;
 	
-	public static final String CONNECT_TIMEOUT = "连接超时" ;
-	public static final String INNTERNET_ERROR = "网络异常" ;
+	public static final String CONNECT_TIMEOUT = "Connection Timeout" ;
+	public static final String INNTERNET_ERROR = "Network Exception" ;
 	
 	private int state ;
 	
