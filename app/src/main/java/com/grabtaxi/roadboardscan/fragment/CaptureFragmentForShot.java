@@ -297,8 +297,8 @@ public class CaptureFragmentForShot extends BaseFragment implements
                 }
                 Log.i(TAG, "SupportedPreviewSizes:" + strPreviewSize);
                 params.setPictureFormat(PixelFormat.JPEG);
-                params.setPreviewSize(cfm.getCameraResolutionForOneShot().x, cfm.getCameraResolutionForOneShot().y);
-                params.setPictureSize(cfm.getCameraResolutionForOneShot().x, cfm.getCameraResolutionForOneShot().y);
+                params.setPreviewSize(cfm.getCameraResolution().x, cfm.getCameraResolution().y);
+                params.setPictureSize(cfm.getCameraResolution().x, cfm.getCameraResolution().y);
                 params.setJpegQuality(100);
                 camera.setParameters(params);
                 // 开始预览

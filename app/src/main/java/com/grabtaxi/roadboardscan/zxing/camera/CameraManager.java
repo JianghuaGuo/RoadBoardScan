@@ -43,15 +43,14 @@ import com.grabtaxi.roadboardscan.zxing.camera.open.OpenCameraInterface;
 public final class CameraManager {
 
 	private static final String TAG = CameraManager.class.getSimpleName();
-	
-//	private static final int MIN_FRAME_WIDTH = 240;
-//	private static final int MIN_FRAME_HEIGHT = 240;
-//	private static final int MAX_FRAME_WIDTH = 1200; // = 5/8 * 1920
-// private static final int MAX_FRAME_HEIGHT = 675; // = 5/8 * 1080
 
-	private static final int MIN_FRAME_WIDTH = (int) (300 * GlobalVariables.SCREEN_DESITY);
+	// 目前主流屏幕分辨率宽度在 480至1080
+	private static final int MIN_FRAME_WIDTH = (int) (300 * GlobalVariables.SCREEN_DESITY);  // 480*5/8
 
 	private static final int MAX_FRAME_WIDTH = (int) (675 * GlobalVariables.SCREEN_DESITY); // 1080*5/8
+
+	// 设置一个合适的高度
+	public static final int FRAME_HEIGHT = (int) (60 * GlobalVariables.SCREEN_DESITY);
 
 	private final Context context;
 
@@ -69,9 +68,6 @@ public final class CameraManager {
 
 	private boolean previewing;
 	private int requestedCameraId = -1;
-	private int requestedFramingRectWidth;
-
-	private int requestedFramingRectHeight;
 
 	/**
 	 * Preview frames are delivered here, which we pass on to the registered
@@ -82,13 +78,13 @@ public final class CameraManager {
 
 	public CameraManager(Context context) {
 		this.context = context;
-		this.configManager = new CameraConfigurationManager(context);
+		this.configManager = new CameraConfigurationManager();
 		previewCallback = new PreviewCallback(configManager);
 	}
 
 	/**
 	 * Opens the camera driver and initializes the hardware parameters.
-	 * 
+	 *
 	 * @param holder
 	 *            The surface object which the camera will draw preview frames
 	 *            into.
@@ -113,12 +109,6 @@ public final class CameraManager {
 		if (!initialized) {
 			initialized = true;
 			configManager.initFromCameraParameters(theCamera);
-			if (requestedFramingRectWidth > 0 && requestedFramingRectHeight > 0) {
-				setManualFramingRect(requestedFramingRectWidth,
-						requestedFramingRectHeight);
-				requestedFramingRectWidth = 0;
-				requestedFramingRectHeight = 0;
-			}
 		}
 
 		Camera.Parameters parameters = theCamera.getParameters();
@@ -252,7 +242,7 @@ public final class CameraManager {
 	 * where to place the barcode. This target helps with alignment as well as
 	 * forces the user to hold the device far enough away to ensure the image
 	 * will be in focus.
-	 * 
+	 *
 	 * @return The rectangle to draw on screen in window coordinates.
 	 */
 	public synchronized Rect getFramingRect() {
@@ -266,13 +256,10 @@ public final class CameraManager {
 				return null;
 			}
 
-			// int width = findDesiredDimensionInRange(screenResolution.x, MIN_FRAME_WIDTH, MAX_FRAME_WIDTH);
-			// int height = findDesiredDimensionInRange(screenResolution.y, MIN_FRAME_HEIGHT, MAX_FRAME_HEIGHT);
-
 			int width = findDesiredDimensionInRange(screenResolution.x,
 					MIN_FRAME_WIDTH, MAX_FRAME_WIDTH);
 			// 将扫描框设置成一个正方形
-			int height = width ;
+			int height = FRAME_HEIGHT ;
 			Log.d(TAG, "getFramingRect width:" + width);
 			int leftOffset = (screenResolution.x - width) / 2;
 			// int topOffset = (screenResolution.y - height) / 2;
@@ -290,7 +277,7 @@ public final class CameraManager {
 	/**
 	 * Target 5/8 of each dimension<br/>
 	 * 计算结果在hardMin~hardMax之间
-	 * 
+	 *
 	 * @param resolution
 	 * @param hardMin
 	 * @param hardMax
@@ -312,7 +299,7 @@ public final class CameraManager {
 	 * Like {@link #getFramingRect} but coordinates are in terms of the preview
 	 * frame, not UI / screen.
 	 */
-	public synchronized Rect getFramingRectInPreview() {
+	private synchronized Rect getFramingRectInPreview() {
 		if (framingRectInPreview == null) {
 			Rect framingRect = getFramingRect();
 			if (framingRect == null) {
@@ -346,53 +333,9 @@ public final class CameraManager {
 	}
 
 	/**
-	 * Allows third party apps to specify the camera ID, rather than determine
-	 * it automatically based on available cameras and their orientation.
-	 * 
-	 * @param cameraId
-	 *            camera ID of the camera to use. A negative value means
-	 *            "no preference".
-	 */
-	public synchronized void setManualCameraId(int cameraId) {
-		requestedCameraId = cameraId;
-	}
-
-	/**
-	 * Allows third party apps to specify the camera ID, rather than determine
-	 * it automatically based on available cameras and their orientation.
-	 * 
-	 * @param width
-	 *            The width in pixels to scan.
-	 * @param height
-	 *            The height in pixels to scan.
-	 */
-	public synchronized void setManualFramingRect(int width, int height) {
-		if (initialized) {
-			Point screenResolution = configManager.getScreenResolution();
-			if (width > screenResolution.x) {
-				width = screenResolution.x;
-			}
-			if (height > screenResolution.y) {
-				height = screenResolution.y;
-			}
-			int leftOffset = (screenResolution.x - width) / 2;
-			//int topOffset = (screenResolution.y - height) / 2;
-			// 距离顶部80dp
-			int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
-			framingRect = new Rect(leftOffset, topOffset, leftOffset + width,
-					topOffset + height);
-			Log.d(TAG, "Calculated manual framing rect: " + framingRect);
-			framingRectInPreview = null;
-		} else {
-			requestedFramingRectWidth = width;
-			requestedFramingRectHeight = height;
-		}
-	}
-
-	/**
 	 * A factory method to build the appropriate LuminanceSource object based on
 	 * the format of the preview buffers, as described by Camera.Parameters.
-	 * 
+	 *
 	 * @param data
 	 *            A preview frame.
 	 * @param width

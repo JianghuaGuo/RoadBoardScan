@@ -1,14 +1,9 @@
 package com.grabtaxi.roadboardscan.zxing.camera;
 
-import java.lang.reflect.Method;
-
-import android.content.Context;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.hardware.Camera;
 import android.util.Log;
-import android.view.Display;
-import android.view.WindowManager;
 
 import com.google.zxing.client.android.camera.CameraConfigurationUtils;
 import com.grabtaxi.roadboardscan.common.GlobalVariables;
@@ -61,11 +56,11 @@ public final class CameraConfigurationManager {
 		Log.i(TAG, "Camera resolution: " + cameraResolution);
 	}
 
-	public Point getCameraResolutionForOneShot() {
+	public Point getCameraResolution() {
 		return cameraResolution;
 	}
 
-	public Point getScreenResolutionForOneShot() {
+	public Point getScreenResolution() {
 		return screenResolution;
 	}
 	public synchronized Rect getTopFramingRectForOneShot() {
@@ -82,8 +77,8 @@ public final class CameraConfigurationManager {
 	public synchronized Rect getFramingRectInPreviewForOneShot(Rect rect) {
 		Log.d(TAG, "getFramingRectInPreview input rect: " + rect);
 		Rect framingRectInPreview = new Rect();
-		Point cameraResolution = getCameraResolutionForOneShot();
-		Point screenResolution = getScreenResolutionForOneShot();
+		Point cameraResolution = getCameraResolution();
+		Point screenResolution = getScreenResolution();
 		if (cameraResolution == null || screenResolution == null) {
 			// Called early, before init even finished
 			return null;
