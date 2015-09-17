@@ -30,7 +30,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.grabtaxi.roadboardscan.R;
-import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.zxing.ViewfinderViewForShot;
 import com.grabtaxi.roadboardscan.zxing.camera.CameraConfigurationManager;
 
@@ -83,7 +82,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
     {
         Log.i(TAG, "onCreateView");
         this.inflater = inflater;
-        View view = inflater.inflate(R.layout.main_route_capture_frag_for_shot, container, false);
+        View view = inflater.inflate(R.layout.capture_frag_for_shot, container, false);
         captureDesc = (TextView) view.findViewById(R.id.capture_desc);
         captureResult = (TextView) view.findViewById(R.id.capture_result);
         captureShot = (Button) view.findViewById(R.id.capture_shot);
