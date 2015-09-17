@@ -1,31 +1,17 @@
-/*
- * Copyright (C) 2010 ZXing authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.grabtaxi.roadboardscan.zxing.camera;
 
 import java.lang.reflect.Method;
 
 import android.content.Context;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.hardware.Camera;
 import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
 
 import com.google.zxing.client.android.camera.CameraConfigurationUtils;
+import com.grabtaxi.roadboardscan.common.GlobalVariables;
 
 /**
  * A class which deals with reading, parsing, and setting the camera parameters
@@ -35,11 +21,9 @@ import com.google.zxing.client.android.camera.CameraConfigurationUtils;
  * 
  * 摄像头参数的设置类
  */
-final class CameraConfigurationManager {
+public final class CameraConfigurationManager {
 
 	private static final String TAG = "CameraConfiguration";
-
-	private final Context context;
 	/**
 	 * 屏幕分辨率
 	 */
@@ -50,22 +34,18 @@ final class CameraConfigurationManager {
 	 */
 	private Point cameraResolution;
 
-	CameraConfigurationManager(Context context) {
-		this.context = context;
+	public CameraConfigurationManager() {
 	}
 
 	/**
 	 * 计算屏幕分辨率和当前最适合的相机像素 Reads, one time, values from the camera that are
 	 * needed by the app.
 	 */
-	void initFromCameraParameters(Camera camera) {
+	public void initFromCameraParameters(Camera camera) {
 		Camera.Parameters parameters = camera.getParameters();
 		Log.i(TAG, "Default preview format: " + parameters.getPreviewFormat()
 				+ '/' + parameters.get("preview-format"));
-		WindowManager manager = (WindowManager) context
-				.getSystemService(Context.WINDOW_SERVICE);
-		Display display = manager.getDefaultDisplay();
-		screenResolution = new Point(display.getWidth(), display.getHeight());
+		screenResolution = new Point(GlobalVariables.SCREEN_WIDTH, GlobalVariables.SCREEN_HEIGHT);
 		Log.i(TAG, "Screen resolution: " + screenResolution);
 		// preview size is always like 480*320,other 320*480
 		Point screenResolutionForCamera = new Point();
@@ -79,6 +59,47 @@ final class CameraConfigurationManager {
 		cameraResolution = CameraConfigurationUtils.findBestPreviewSizeValue(
 				parameters, screenResolutionForCamera);
 		Log.i(TAG, "Camera resolution: " + cameraResolution);
+	}
+
+	public Point getCameraResolutionForOneShot() {
+		return cameraResolution;
+	}
+
+	public Point getScreenResolutionForOneShot() {
+		return screenResolution;
+	}
+	public synchronized Rect getTopFramingRectForOneShot() {
+		int rectWidth = (int) (300 * GlobalVariables.SCREEN_DESITY);;
+		int rectHeight = (int) (60 * GlobalVariables.SCREEN_DESITY);;
+		int rectMargin = (int) (10 * GlobalVariables.SCREEN_DESITY);;
+		int leftOffset = (GlobalVariables.SCREEN_WIDTH - rectWidth) / 2;
+		int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
+		Rect topFramingRect = new Rect(leftOffset, topOffset, leftOffset + rectWidth,
+				topOffset + rectHeight);
+		return topFramingRect;
+	}
+
+	public synchronized Rect getFramingRectInPreviewForOneShot(Rect rect) {
+		Log.d(TAG, "getFramingRectInPreview input rect: " + rect);
+		Rect framingRectInPreview = new Rect();
+		Point cameraResolution = getCameraResolutionForOneShot();
+		Point screenResolution = getScreenResolutionForOneShot();
+		if (cameraResolution == null || screenResolution == null) {
+			// Called early, before init even finished
+			return null;
+		}
+		// 由于修改了屏幕的初始方向，手机分辨率由原来的width*height变为height*width形式，但是相机的分辨率则是固定的，因此这里需做些调整以计算出正确的缩放比率。
+		rect.left = rect.left * cameraResolution.y / screenResolution.x;
+		rect.right = rect.right * cameraResolution.y / screenResolution.x;
+		rect.top = rect.top * cameraResolution.x / screenResolution.y;
+		rect.bottom = rect.bottom * cameraResolution.x / screenResolution.y;
+		framingRectInPreview = rect;
+
+		Log.d(TAG, "getFramingRectInPreview calculated framingRectInPreview: "
+				+ framingRectInPreview);
+		Log.d(TAG, "cameraResolution: " + cameraResolution);
+		Log.d(TAG, "screenResolution: " + screenResolution);
+		return framingRectInPreview;
 	}
 
 	/**
@@ -134,14 +155,6 @@ final class CameraConfigurationManager {
 		}
 		// 调整相机preview的时钟方向与手机竖屏的自然方向一致。该方法必须在startPreview之前被调用，在预览界面展示出来后设置是无效的。
 		 camera.setDisplayOrientation(90);
-	}
-
-	Point getCameraResolution() {
-		return cameraResolution;
-	}
-
-	Point getScreenResolution() {
-		return screenResolution;
 	}
 
 	boolean getTorchState(Camera camera) {

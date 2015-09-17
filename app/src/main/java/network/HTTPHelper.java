@@ -8,6 +8,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.http.conn.ConnectTimeoutException;
 
@@ -16,16 +18,25 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.text.TextUtils;
 
-public class HTTPHelper {
-
-
-	public static HttpResult uploadFile(String path, File file) {
+public class HttpHelper
+{
+	public static HttpResult uploadFile(String path, File file, HashMap<String, String> params) {
 		HttpResult hr = new HttpResult();
 		HttpURLConnection conn = null;
 		try {
 			String BOUNDARY = "---------------------------7db1c523809b2";// 数据分割线
 			// 仿Http协议发送数据方式进行拼接
 			StringBuilder sb = new StringBuilder();
+
+			if (params != null) {
+				for (Map.Entry<String, String> e : params.entrySet()) {
+					sb.append("Content-Disposition: form-data; name=\"" + e.getKey() + "\"" + "\r\n");
+					sb.append("\r\n");
+					sb.append(e.getValue() + "\r\n");
+					sb.append("--" + BOUNDARY + "\r\n");
+				}
+			}
+
 			sb.append("--" + BOUNDARY + "\r\n");
 			sb.append("Content-Disposition: form-data; name=\"photo\"; filename=\"" + file.getName() + "\"" + "\r\n");
 			sb.append("Content-Type: image/jpeg" + "\r\n");
@@ -85,7 +96,6 @@ public class HTTPHelper {
 		}
 		return hr;
 	}
-
 
 	/**
 	 * 检查是否连接了网络

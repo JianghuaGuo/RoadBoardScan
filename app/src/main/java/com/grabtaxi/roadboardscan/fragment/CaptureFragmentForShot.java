@@ -7,12 +7,14 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Vibrator;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -30,6 +32,7 @@ import android.widget.Toast;
 import com.grabtaxi.roadboardscan.R;
 import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.zxing.ViewfinderViewForShot;
+import com.grabtaxi.roadboardscan.zxing.camera.CameraConfigurationManager;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -49,6 +52,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
     private final String TAG = getClass().getSimpleName();
     private LayoutInflater inflater;
     private Camera camera;
+    private CameraConfigurationManager cfm;
     private ViewfinderViewForShot viewfinderView;
     private SurfaceView surfaceView;
     // 提示
@@ -95,11 +99,13 @@ public class CaptureFragmentForShot extends BaseFragment implements
                         if (!isProcessing)
                         {
                             isProcessing = true;
+                            captureShot.setEnabled(false);
                             camera.takePicture(shutter, null, new MyPictureCallback());
                         }
                     }catch(Exception e){
                         e.printStackTrace();
                         isProcessing = false;
+                        captureShot.setEnabled(true);
                     }
                 }
             }
@@ -162,7 +168,8 @@ public class CaptureFragmentForShot extends BaseFragment implements
         Log.i(TAG, "onResume");
         super.onResume();
         SurfaceHolder surfaceHolder = surfaceView.getHolder();
-        surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);//surfaceview不维护自己的缓冲区，等待屏幕渲染引擎将内容推送到用户面前
+        //surfaceview不维护自己的缓冲区，等待屏幕渲染引擎将内容推送到用户面前
+        surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         surfaceHolder.addCallback(this);
 
     }
@@ -177,15 +184,61 @@ public class CaptureFragmentForShot extends BaseFragment implements
         super.onPause();
     }
 
+
     @Override
+    public void onStop()
+    {
+        Log.i(TAG, "onStop");
+        super.onStop();
+    }
+
+    @Override
+    public void onDetach()
+    {
+        Log.i(TAG, "onDetach");
+        super.onDetach();
+    }
+
+    @Override
+    public void onDestroy()
+    {
+        Log.i(TAG, "onDestroy");
+        // 	退出全屏模式
+        WindowManager.LayoutParams attrs = getActivity().getWindow().getAttributes();
+        attrs.flags &= (~WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getActivity().getWindow().setAttributes(attrs);
+        getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        if (camera != null) {
+            camera.stopPreview();
+            camera.release();
+            camera = null;
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    public void onDestroyView()
+    {
+        Log.i(TAG, "onDestroyView");
+        super.onDestroyView();
+    }
+
+	@Override
     public void surfaceCreated(SurfaceHolder holder)
     {
         try
         {
-            camera = Camera.open(); // 打开摄像头
+            int cameraCount= Camera.getNumberOfCameras();
+            Log.i(TAG,"cameraCount:" + cameraCount);
+            // 打开摄像头
+            camera = Camera.open();
             try
             {
-                camera.setPreviewDisplay(holder); // 设置用于显示拍照影像的SurfaceHolder对象
+                // 设置用于显示拍照影像的SurfaceHolder对象
+                camera.setPreviewDisplay(holder);
+                cfm = new CameraConfigurationManager();
+                cfm.initFromCameraParameters(camera);
+                viewfinderView.setCameraConfigurationManager(cfm);
             }catch (IOException e){
                 camera.release();
                 camera = null;
@@ -205,7 +258,8 @@ public class CaptureFragmentForShot extends BaseFragment implements
         {
             //当surfaceview关闭时，关闭预览并释放资源
             camera.stopPreview();
-            camera.release(); // 释放照相机
+            // 释放照相机
+            camera.release();
             camera = null;
         }
     }
@@ -221,11 +275,9 @@ public class CaptureFragmentForShot extends BaseFragment implements
 
         if(camera != null)
         {
-            //这里可以做一些我们要做的变换。
-            //重新开启Camera的预览功能
             try{
                 Camera.Parameters params = camera.getParameters();
-                Log.e("gjh", "SupportedPictureFormats:" + params.getSupportedPictureFormats());
+                Log.i(TAG, "SupportedPictureFormats:" + params.getSupportedPictureFormats());
                 List rawSupportedPictureSizes = params.getSupportedPictureSizes();
                 StringBuilder strPictureSize = new StringBuilder();
                 Iterator pictureSizeIter = rawSupportedPictureSizes.iterator();
@@ -234,8 +286,8 @@ public class CaptureFragmentForShot extends BaseFragment implements
                     Camera.Size it = (Camera.Size)pictureSizeIter.next();
                     strPictureSize.append(it.width).append('x').append(it.height).append(' ');
                 }
-                Log.e("gjh", "SupportedPictureSizes:" + strPictureSize);
-                Log.e("gjh", "SupportedPreviewFormats:" + params.getSupportedPreviewFormats());
+                Log.i(TAG, "SupportedPictureSizes:" + strPictureSize);
+                Log.i(TAG, "SupportedPreviewFormats:" + params.getSupportedPreviewFormats());
                 List rawSupportedPreviewSizes = params.getSupportedPreviewSizes();
                 StringBuilder strPreviewSize = new StringBuilder();
                 Iterator previewSizeIter = rawSupportedPreviewSizes.iterator();
@@ -244,13 +296,14 @@ public class CaptureFragmentForShot extends BaseFragment implements
                     Camera.Size it = (Camera.Size)previewSizeIter.next();
                     strPreviewSize.append(it.width).append('x').append(it.height).append(' ');
                 }
-                Log.e("gjh", "SupportedPreviewSizes:" + strPreviewSize);
-                params.setPictureFormat(PixelFormat.JPEG);//图片格式
-                params.setPreviewSize(1920, 1080);//图片大小
-                params.setPictureSize(1920, 1080);
+                Log.i(TAG, "SupportedPreviewSizes:" + strPreviewSize);
+                params.setPictureFormat(PixelFormat.JPEG);
+                params.setPreviewSize(cfm.getCameraResolutionForOneShot().x, cfm.getCameraResolutionForOneShot().y);
+                params.setPictureSize(cfm.getCameraResolutionForOneShot().x, cfm.getCameraResolutionForOneShot().y);
                 params.setJpegQuality(100);
-                camera.setParameters(params);//将参数设置到我的camera
-                camera.startPreview(); // 开始预览
+                camera.setParameters(params);
+                // 开始预览
+                camera.startPreview();
                 // 开始对焦
                 camera.autoFocus(null);
             }catch(Exception e){
@@ -265,7 +318,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
         viewfinderView.drawViewfinder();
     }
 
-    Camera.ShutterCallback shutter = new Camera.ShutterCallback() {
+    private Camera.ShutterCallback shutter = new Camera.ShutterCallback() {
 
         @Override
         public void onShutter() {
@@ -291,7 +344,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
         {
             try
             {
-                captureResult.setText("Uploading, Please waiting...");
+                captureResult.setText("Automatically Recognizing, Please wait...");
                 // 保存图片到sd卡中
                 new FileThread(data).start();
                 camera.stopPreview();//关闭预览 处理数据
@@ -300,6 +353,8 @@ public class CaptureFragmentForShot extends BaseFragment implements
             } catch (Exception e)
             {
                 e.printStackTrace();
+                isProcessing = false;
+                captureShot.setEnabled(true);
             }
         }
     }
@@ -311,13 +366,9 @@ public class CaptureFragmentForShot extends BaseFragment implements
             super.handleMessage(msg);
             if (msg.what == 100)
             {
-                String[] obj = (String[])msg.obj;
+                String obj = (String)msg.obj;
                 new UploadImageRequestTask(getActivity(), new HttpResultListener()
                 {
-                    @Override
-                    public void onBefore(){
-
-                    }
                     @Override
                     public void onSuccess(HttpResult result)
                     {
@@ -325,11 +376,18 @@ public class CaptureFragmentForShot extends BaseFragment implements
                         switch (result.getState())
                         {
                             case HttpResult.INTERNET_SUCCESS:
-                                Toast.makeText(getActivity(), "File upload success.",
+                                Toast.makeText(getActivity(), "result:" + result.getResult().substring(3),
                                         Toast.LENGTH_SHORT).show();
-                                captureResult.setText("result:" + result.getResult().substring(3));
+                                String text = result.getResult().substring(3);
+                                captureResult.setText("result:" + text);
+
+                                if (TextUtils.isEmpty(text))
+                                {
+                                    Toast.makeText(getActivity(), "Recognized nothing, please try again.", Toast.LENGTH_SHORT).show();
+                                }
                                 break;
                             case HttpResult.INTERNET_EXCEPTION:
+                                // 网络异常
                                 Toast.makeText(getActivity(), result.getErrorMsg(),
                                         Toast.LENGTH_SHORT).show();
                                 captureResult.setText(result.getErrorMsg());
@@ -343,9 +401,10 @@ public class CaptureFragmentForShot extends BaseFragment implements
                     public void onFailed(HttpResult result)
                     {
                         isProcessing = false;
-                        Toast.makeText(getActivity(), "File upload failed.",
+                        captureShot.setEnabled(true);
+                        Toast.makeText(getActivity(), "Recognized failed, please try again.",
                                 Toast.LENGTH_SHORT).show();
-                        captureResult.setText("File upload failed.");
+                        captureResult.setText("Recognized failed, please try again.");
                     }
 
                     @Override
@@ -353,38 +412,18 @@ public class CaptureFragmentForShot extends BaseFragment implements
                     {
 
                     }
-                }).execute(obj[0]);
-//                new UploadImageRequestTask(getActivity(), new HttpResultListener()
-//                {
-//                    @Override
-//                    public void onSuccess(HttpResult result)
-//                    {
-//
-//                    }
-//
-//                    @Override
-//                    public void onFailed(HttpResult result)
-//                    {
-//
-//                    }
-//
-//                    @Override
-//                    public void updateProgress(int progress)
-//                    {
-//
-//                    }
-//                }).execute(obj[1]);
+                }).execute(obj);
             } else if (msg.what == -100){
-                Toast.makeText(getActivity(),"Fail to save file.",Toast.LENGTH_SHORT).show();
+                Toast.makeText(getActivity(),"Failed to save image file.",Toast.LENGTH_SHORT).show();
                 isProcessing = false;
             }
         }
     };
+
     private class FileThread extends Thread
     {
         private byte[] data = null;
         private String topFilePath;
-        private String bottomFilePath;
 
         public FileThread(byte[] dt)
         {
@@ -397,11 +436,16 @@ public class CaptureFragmentForShot extends BaseFragment implements
             super.run();
             try
             {
-                saveToSDCard(data);
-                Message msg = new Message();
-                msg.what = 100;
-                msg.obj = new String[]{topFilePath,bottomFilePath};
-                handler.sendMessage(msg);
+                if(isHaveSDCard())
+                {
+                    saveToSDCard(data);
+                    Message msg = new Message();
+                    msg.what = 100;
+                    msg.obj = topFilePath;
+                    handler.sendMessage(msg);
+                } else {
+                    handler.sendEmptyMessage(-100);
+                }
             } catch (Exception e)
             {
                 e.printStackTrace();
@@ -418,55 +462,47 @@ public class CaptureFragmentForShot extends BaseFragment implements
          */
         private void saveToSDCard(byte[] data) throws IOException
         {
-            Log.e("gjh", "" + data.length);
-            //剪切为正方形
-//        Bitmap b = byteToBitmap(data);
+            Log.i(TAG, "" + data.length);
             Matrix matrix = new Matrix();
             matrix.reset();
             matrix.postRotate(90);
             Bitmap origin = BitmapFactory.decodeByteArray(data, 0, data.length);
+            Log.i(TAG, "before rotate origin:" + origin.getWidth() + "x" + origin.getHeight());
             Bitmap b = Bitmap.createBitmap(origin, 0, 0, origin.getWidth(),
                     origin.getHeight(), matrix, true);
-
-            int rectWidth = (int) (300 * GlobalVariables.SCREEN_DESITY);
-            int rectHeight = (int) (60 * GlobalVariables.SCREEN_DESITY);
-            int rectMargin = (int) (10 * GlobalVariables.SCREEN_DESITY);
-            int leftOffset = (GlobalVariables.SCREEN_WIDTH - rectWidth) / 2;
-            int topOffset = (int) ((80 + 60) * GlobalVariables.SCREEN_DESITY);
-
-//          Bitmap topBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3, rectWidth * 2/3, rectHeight * 2/3);
-            Bitmap topBmp = Bitmap.createBitmap(b, leftOffset, topOffset, rectWidth, rectHeight);
-            isValidIndicator(topBmp);
-
-            //生成文件
-            Date date = new Date();
-            SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss"); // 格式化时间
-            String topFileName = format.format(date) + "top.jpg";
+            origin.recycle();
+            Log.i(TAG, "after rotate b:" + b.getWidth() + "x" + b.getHeight());
             File fileFolder = new File(Environment.getExternalStorageDirectory() + File.separator + "roadboard" + File.separator);
             if (!fileFolder.exists())
-            { // 如果目录不存在，则创建一个名为"finger"的目录
+            {
                 fileFolder.mkdir();
             }
+
+            Date date = new Date();
+            SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss");
+
+            String fileName = format.format(date) + ".jpg";
+            File file = new File(fileFolder, fileName);
+            FileOutputStream outputStream = new FileOutputStream(file);
+            b.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+            outputStream.flush();
+            outputStream.close();
+
+            Rect topRectInPreview = cfm.getFramingRectInPreviewForOneShot(cfm.getTopFramingRectForOneShot());
+            Bitmap topBmp = Bitmap.createBitmap(b, topRectInPreview.left, topRectInPreview.top, topRectInPreview.width(), topRectInPreview.height());
+            isValidIndicator(topBmp);
+            String topFileName = format.format(date) + "top.jpg";
             File topFile = new File(fileFolder, topFileName);
             topFilePath = topFile.getAbsolutePath();
-            FileOutputStream topOutputStream = new FileOutputStream(topFile); // 文件输出流
+            FileOutputStream topOutputStream = new FileOutputStream(topFile);
             topBmp.compress(Bitmap.CompressFormat.JPEG, 100, topOutputStream);
             topOutputStream.flush();
-            topOutputStream.close(); // 关闭输出流
-            topBmp.recycle();//回收bitmap空间
+            topOutputStream.close();
+            topBmp.recycle();
 
-//          Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset * 2/3, topOffset * 2/3 + rectHeight * 2/3 + rectMargin * 2/3, rectWidth * 2/3, rectHeight * 2/3);
-            Bitmap bottomBmp = Bitmap.createBitmap(b, leftOffset, topOffset + rectHeight + rectMargin, rectWidth, rectHeight);
-            isValidIndicator(bottomBmp);
-            String bottomFileName = format.format(date) + "bottom.jpg";
-            File bottomFile = new File(fileFolder, bottomFileName);
-            bottomFilePath = bottomFile.getAbsolutePath();
-            FileOutputStream bottomOutputStream = new FileOutputStream(bottomFile); // 文件输出流
-            bottomBmp.compress(Bitmap.CompressFormat.JPEG, 100, bottomOutputStream);
-            bottomOutputStream.flush();
-            bottomOutputStream.close(); // 关闭输出流
-            bottomBmp.recycle();//回收bitmap空间
+            b.recycle();
         }
+
         /**
          * 检验是否有SD卡
          *
@@ -496,7 +532,7 @@ public class CaptureFragmentForShot extends BaseFragment implements
             }
         }
         int percent = (valid * 100) / (w * h);
-        Log.e(TAG, "w:" + w + " h:" + h + " valid:" + valid + " percent:" + percent);
+        Log.i(TAG, "w:" + w + " h:" + h + " valid:" + valid + " percent:" + percent);
         if (percent > 50){
             return true;
         }else{
@@ -512,44 +548,5 @@ public class CaptureFragmentForShot extends BaseFragment implements
         result[2] = ((i >> 8) & 0xFF);
         result[3] = (i & 0xFF);
         return result;
-    }
-
-    @Override
-    public void onStop()
-    {
-        Log.i(TAG, "onStop");
-        super.onStop();
-    }
-
-    @Override
-    public void onDetach()
-    {
-        Log.i(TAG, "onDetach");
-        super.onDetach();
-    }
-
-    @Override
-    public void onDestroy()
-    {
-        Log.i(TAG, "onDestroy");
-        super.onDestroy();
-        // 	退出全屏模式
-        WindowManager.LayoutParams attrs = getActivity().getWindow().getAttributes();
-        attrs.flags &= (~WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        getActivity().getWindow().setAttributes(attrs);
-        getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-        if (camera != null) {
-            camera.stopPreview();
-            camera.release();
-            camera = null;
-        }
-        super.onDestroy();
-    }
-
-    @Override
-    public void onDestroyView()
-    {
-        Log.i(TAG, "onDestroyView");
-        super.onDestroyView();
     }
 }

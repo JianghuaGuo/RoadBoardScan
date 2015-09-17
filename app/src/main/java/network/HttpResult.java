@@ -1,21 +1,13 @@
 package network;
-/**
- * @author  作者 E-mail: zhuyg
- * @version 创建时间：2013-3-21 上午11:22:53
- * 类说明         Http访问返回结果
- */
 public class HttpResult {
 
 	public static final int INTERNET_EXCEPTION = -1 ;
 	public static final int INTERNET_SUCCESS = 1 ;
 	
 	public static final String CONNECT_TIMEOUT = "Connection Timeout" ;
-	public static final String INNTERNET_ERROR = "Network Exception" ;
-	
+	public static final String INNTERNET_ERROR = "Network Exception" ;	
 	private int state ;
-	
 	private String result ;
-	
 	private String errorMsg ;
 
 	public int getState() {
@@ -41,7 +33,5 @@ public class HttpResult {
 	public void setErrorMsg(String errorMsg) {
 		this.errorMsg = errorMsg;
 	}
-	
-	
 }
  

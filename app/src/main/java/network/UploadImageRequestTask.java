@@ -11,7 +11,7 @@ import android.widget.Toast;
 public class UploadImageRequestTask extends
 		AsyncTask<String, Void, HttpResult> {
 
-
+	private final String TAG = this.getClass().getSimpleName();
 	private Context context;
 	private HttpResultListener listener;
 	// 请求地址
@@ -29,14 +29,15 @@ public class UploadImageRequestTask extends
 
 		HttpResult hr = null;
 		// 判断网络是否可用
-		if (HTTPHelper.checkNetWorkStatus(context)) {
+		if (HttpHelper.checkNetWorkStatus(context)) {
 			String fielPath = params[0];
-			Log.e("gjh",fielPath);
+			Log.i(TAG,fielPath);
 			File file = new File(fielPath);
+
 			HashMap<String, String> map = new HashMap<String, String>();
-			hr = HTTPHelper.uploadFile(url, file);
-			Log.e("gjh","state:" + hr.getState());
-			Log.e("gjh","result:" + hr.getResult());
+			hr = HttpHelper.uploadFile(url, file, map);
+			Log.i(TAG,"state:" + hr.getState());
+			Log.i(TAG,"result:" + hr.getResult());
 			return hr;
 		} else {
 			return hr;
@@ -68,9 +69,6 @@ public class UploadImageRequestTask extends
 	@Override
 	protected void onPreExecute() {
 		super.onPreExecute();
-		if (this.listener != null){
-			this.listener.onBefore();
-		}
 	}
 
 	@Override

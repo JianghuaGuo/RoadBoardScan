@@ -1,25 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
- Copyright (C) 2008 ZXing authors
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
--->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
                 xmlns:tools="http://schemas.android.com/tools"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clickable="true"
-                tools:context=".fragment.CaptureFragment">
+                android:clickable="true">
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -49,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:gravity="center"
-                android:text="Put the road indicator in the rect area, and touch screen to auto focus, click OK when it is clear"
+                android:text="Put the road indicator in the area, click OK after focused"
                 android:textColor="@android:color/white"
                 android:textSize="16sp"/>
             <Button
@@ -57,6 +41,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:layout_marginTop="5dp"
+                android:background="@drawable/capture_button"
                 android:text="OK"
                 android:textColor="@android:color/white"
                 android:textSize="16sp"/>
@@ -66,32 +52,33 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
+                android:layout_marginTop="5dp"
                 android:gravity="center"
                 android:textColor="@android:color/holo_red_dark"
-                android:textSize="20sp"/>
+                android:textSize="16sp"/>
         </LinearLayout>
-    </FrameLayout>
 
-    <RelativeLayout
-        android:id="@+id/capture_title_layout"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/common_title_height"
-        android:background="@android:color/black"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/capture_title"
-            android:layout_width="wrap_content"
+        <RelativeLayout
+            android:id="@+id/capture_title_layout"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:gravity="center"
-            android:text="RoadIndicatorScan"
-            android:textColor="@android:color/white"
-            android:textSize="@dimen/common_title_text_size"/>
+            android:layout_marginTop="20dp"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-    </RelativeLayout>
+            <TextView
+                android:id="@+id/capture_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:gravity="center"
+                android:text="RoadIndicatorScan"
+                android:textColor="@android:color/white"
+                android:textSize="22sp"/>
+
+        </RelativeLayout>
+    </FrameLayout>
 
 </RelativeLayout>
