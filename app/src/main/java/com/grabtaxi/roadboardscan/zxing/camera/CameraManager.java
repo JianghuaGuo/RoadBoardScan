@@ -26,7 +26,6 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
-import com.google.zxing.PlanarYUVLuminanceSource;
 import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.zxing.camera.open.OpenCameraInterface;
 
@@ -246,6 +245,7 @@ public final class CameraManager {
 	 * @return The rectangle to draw on screen in window coordinates.
 	 */
 	public synchronized Rect getFramingRect() {
+//		Log.i(TAG,"getFramingRect");
 		if (framingRect == null) {
 			if (camera == null) {
 				return null;
@@ -299,7 +299,7 @@ public final class CameraManager {
 	 * Like {@link #getFramingRect} but coordinates are in terms of the preview
 	 * frame, not UI / screen.
 	 */
-	private synchronized Rect getFramingRectInPreview() {
+	public synchronized Rect getFramingRectInPreview() {
 		if (framingRectInPreview == null) {
 			Rect framingRect = getFramingRect();
 			if (framingRect == null) {
@@ -331,28 +331,4 @@ public final class CameraManager {
 
 		return framingRectInPreview;
 	}
-
-	/**
-	 * A factory method to build the appropriate LuminanceSource object based on
-	 * the format of the preview buffers, as described by Camera.Parameters.
-	 *
-	 * @param data
-	 *            A preview frame.
-	 * @param width
-	 *            The width of the image.
-	 * @param height
-	 *            The height of the image.
-	 * @return A PlanarYUVLuminanceSource instance.
-	 */
-	public PlanarYUVLuminanceSource buildLuminanceSource(byte[] data,
-			int width, int height) {
-		Rect rect = getFramingRectInPreview();
-		if (rect == null) {
-			return null;
-		}
-		// Go ahead and assume it's YUV rather than die.
-		return new PlanarYUVLuminanceSource(data, width, height, rect.left,
-				rect.top, rect.width(), rect.height(), false);
-	}
-
 }

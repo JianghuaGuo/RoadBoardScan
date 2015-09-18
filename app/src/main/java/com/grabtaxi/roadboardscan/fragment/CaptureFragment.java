@@ -3,12 +3,15 @@ package com.grabtaxi.roadboardscan.fragment;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import javax.crypto.Cipher;
 
@@ -18,10 +21,11 @@ import android.content.Intent;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Paint;
+import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
@@ -39,17 +43,16 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.Result;
-import com.google.zxing.ResultPoint;
 import com.grabtaxi.roadboardscan.R;
-import com.grabtaxi.roadboardscan.zxing.BeepManager;
 import com.grabtaxi.roadboardscan.zxing.CaptureActivityHandler;
 import com.grabtaxi.roadboardscan.zxing.ViewfinderView;
 import com.grabtaxi.roadboardscan.zxing.camera.CameraManager;
-import com.grabtaxi.roadboardscan.zxing.result.ResultHandler;
-import com.grabtaxi.roadboardscan.zxing.result.ResultHandlerFactory;
+
+import network.HttpResult;
+import network.HttpResultListener;
+import network.UploadImageRequestTask;
 
 public class CaptureFragment extends BaseFragment  implements
 SurfaceHolder.Callback {
@@ -59,38 +62,16 @@ SurfaceHolder.Callback {
 
 	private CaptureActivityHandler handler;
 
-	private Result savedResultToShow;
-
 	private ViewfinderView viewfinderView;
 	private SurfaceView surfaceView;
 	private TextView captureFlash;
 	// 扫描提示，例如"请将条码置于取景框内扫描"之类的提示
 	private TextView captureDesc;
-	// 扫描状态
-	private TextView statusText;
-	private ImageView statusImage;
-	private TextView notFound;
+	private TextView captureResult;
 	// 显示扫描截图
-	private ImageView barCodeImage;
-	// 扫描中
-	private ProgressBar progress;
-	// 解析结果
-	private LinearLayout captureResultInfo;
-	private TextView captureResultName;
-	private TextView captureResultSchedule;
-	private TextView captureResultDate;
-
-	/**
-	 * 扫描结果展示窗口
-	 */
-	private View resultView;
+	private ImageView indicatorImage;
 
 	private boolean hasSurface;
-
-	/**
-	 * 声音震动管理器。如果扫描成功后可以播放一段音频，也可以震动提醒，可以通过配置来决定扫描成功后的行为。
-	 */
-	private BeepManager beepManager;
 
 	/**
 	 * 闪光灯调节器。自动检测环境光线强弱并决定是否开启闪光灯
@@ -128,19 +109,11 @@ SurfaceHolder.Callback {
 		View view = inflater.inflate(R.layout.main_route_capture_frag, container,false);
 		captureFlash= (TextView) view.findViewById(R.id.capture_flash);
 		captureDesc = (TextView) view.findViewById(R.id.capture_desc);
-		statusText = (TextView) view.findViewById(R.id.capture_status_text);
-		statusImage = (ImageView) view.findViewById(R.id.capture_status_img);
-		notFound = (TextView) view.findViewById(R.id.capture_not_found);
-		barCodeImage = (ImageView) view.findViewById(R.id.capture_barcode_image);
-		progress = (ProgressBar) view.findViewById(R.id.capture_progress);
-		captureResultInfo = (LinearLayout) view.findViewById(R.id.capture_result_info);
-		captureResultName = (TextView) view.findViewById(R.id.capture_result_passenger_name);
-		captureResultSchedule = (TextView) view.findViewById(R.id.capture_result_schedule);
-		captureResultDate = (TextView) view.findViewById(R.id.capture_result_date);
+		captureResult = (TextView) view.findViewById(R.id.capture_result);
+		indicatorImage = (ImageView) view.findViewById(R.id.capture_indicator_image);
 		surfaceView = (SurfaceView) view.findViewById(R.id.preview_view);
 		
 		viewfinderView = (ViewfinderView) view.findViewById(R.id.viewfinder_view);
-		resultView = view.findViewById(R.id.result_view);
 		captureFlash.setOnClickListener(new OnClickListener(){
 			private boolean flashOn = false;
 			@Override
@@ -158,7 +131,6 @@ SurfaceHolder.Callback {
 		
 		// 这里仅仅是对各个组件进行简单的创建动作，真正的初始化动作放在onResume中
 		hasSurface = false;
-		beepManager = new BeepManager(getActivity());
 //		ambientLightManager = new AmbientLightManager(getActivity());
 		return view;
 	}
@@ -232,9 +204,6 @@ SurfaceHolder.Callback {
 			surfaceHolder.addCallback(this);
 		}
 
-		// 加载声音配置，其实在BeemManager的构造器中也会调用该方法，即在onCreate的时候会调用一次
-		beepManager.updatePrefs();
-
 		// 启动闪光灯调节器
 //		ambientLightManager.start(cameraManager);
 	}
@@ -249,7 +218,6 @@ SurfaceHolder.Callback {
 
 		// 停止闪光灯控制器
 //		ambientLightManager.stop();
-		beepManager.close();
 		// 关闭摄像头
 		cameraManager.closeDriver();
 		if (!hasSurface) {
@@ -257,29 +225,6 @@ SurfaceHolder.Callback {
 			surfaceHolder.removeCallback(this);
 		}
 		super.onPause();
-	}
-
-	/**
-	 * 向CaptureActivityHandler中发送消息，并展示扫描到的图像
-	 * 
-	 * @param bitmap
-	 * @param result
-	 */
-	private void decodeOrStoreSavedBitmap(Bitmap bitmap, Result result) {
-		// Bitmap isn't used yet -- will be used soon
-		if (handler == null) {
-			savedResultToShow = result;
-		} else {
-			if (result != null) {
-				savedResultToShow = result;
-			}
-			if (savedResultToShow != null) {
-				Message message = Message.obtain(handler,
-						R.id.decode_succeeded, savedResultToShow);
-				handler.sendMessage(message);
-			}
-			savedResultToShow = null;
-		}
 	}
 
 	@Override
@@ -305,73 +250,6 @@ SurfaceHolder.Callback {
 
 	}
 
-	/**
-	 * A valid barcode has been found, so give an indication of success and show
-	 * the results.
-	 * 
-	 * @param rawResult
-	 *            The contents of the barcode.
-	 * @param scaleFactor
-	 *            amount by which thumbnail was scaled
-	 * @param barcode
-	 *            A greyscale bitmap of the camera data which was decoded.
-	 */
-	public void handleDecodeSuccess(Result rawResult, Bitmap barcode, float scaleFactor) {
-		Log.i(TAG, "handleDecodeSuccess");
-		ResultHandler resultHandler = ResultHandlerFactory.makeResultHandler(
-				getActivity(), rawResult);
-
-		drawResultPoints(barcode, scaleFactor, rawResult);
-		handleDecodeInternally(rawResult, resultHandler, barcode);
-	}
-
-	/**
-	 * Superimpose a line for 1D or dots for 2D to highlight the key features of
-	 * the barcode.
-	 * 
-	 * @param barcode
-	 *            A bitmap of the captured image.
-	 * @param scaleFactor
-	 *            amount by which thumbnail was scaled
-	 * @param rawResult
-	 *            The decoded results which contains the points to draw.
-	 */
-	private void drawResultPoints(Bitmap barcode, float scaleFactor,
-			Result rawResult) {
-		ResultPoint[] points = rawResult.getResultPoints();
-		if (points != null && points.length > 0) {
-			Canvas canvas = new Canvas(barcode);
-			Paint paint = new Paint();
-			paint.setColor(getResources().getColor(R.color.result_points));
-			if (points.length == 2) {
-				paint.setStrokeWidth(4.0f);
-				drawLine(canvas, paint, points[0], points[1], scaleFactor);
-			} else if (points.length == 4
-					&& (rawResult.getBarcodeFormat() == BarcodeFormat.UPC_A || rawResult
-							.getBarcodeFormat() == BarcodeFormat.EAN_13)) {
-				// Hacky special case -- draw two lines, for the barcode and
-				// metadata
-				drawLine(canvas, paint, points[0], points[1], scaleFactor);
-				drawLine(canvas, paint, points[2], points[3], scaleFactor);
-			} else {
-				paint.setStrokeWidth(10.0f);
-				for (ResultPoint point : points) {
-					if (point != null) {
-						canvas.drawPoint(scaleFactor * point.getX(),
-								scaleFactor * point.getY(), paint);
-					}
-				}
-			}
-		}
-	}
-
-	private static void drawLine(Canvas canvas, Paint paint, ResultPoint a,
-			ResultPoint b, float scaleFactor) {
-		if (a != null && b != null) {
-			canvas.drawLine(scaleFactor * a.getX(), scaleFactor * a.getY(),
-					scaleFactor * b.getX(), scaleFactor * b.getY(), paint);
-		}
-	}
 
 	// Put up our own UI for how to handle the decoded contents.
 	/**
@@ -381,158 +259,157 @@ SurfaceHolder.Callback {
 	 * @param resultHandler
 	 * @param barcode
 	 */
-	private void handleDecodeInternally(Result rawResult,
-			ResultHandler resultHandler, Bitmap barcode) {
-		viewfinderView.setVisibility(View.GONE);
-		captureDesc.setVisibility(View.GONE);
-		resultView.setVisibility(View.VISIBLE);
-		barCodeImage.setVisibility(View.VISIBLE);
-		if (barcode == null) {
-			barCodeImage.setImageBitmap(BitmapFactory.decodeResource(
-					getResources(), R.mipmap.ic_launcher));
-		} else {
-			barCodeImage.setImageBitmap(barcode);
+	public void handleDecodeSuccess(Bitmap content) {
+		if (content != null) {
+			indicatorImage.setVisibility(View.VISIBLE);
+			indicatorImage.setImageBitmap(content);
+			captureResult.setText("Found valid indicator, recognizing, Please wait......");
+			new FileThread(content).start();
 		}
-
-		CharSequence displayContents = resultHandler.getDisplayContents();
-		new ValidateTicket().execute(displayContents.toString());
 	}
 
-	private class ValidateTicket extends AsyncTask<String,String,String>{
-
-		private String qrCode;
+	private Handler fileHandler = new Handler(){
 		@Override
-		protected void onPreExecute() {
-			super.onPreExecute();
-			beforeValidate();
-		}
+		public void handleMessage(Message msg)
+		{
+			super.handleMessage(msg);
+			if (msg.what == 100)
+			{
+				String obj = (String)msg.obj;
+				new UploadImageRequestTask(getActivity(), new HttpResultListener()
+				{
+					@Override
+					public void onSuccess(HttpResult result)
+					{
+						switch (result.getState())
+						{
+							case HttpResult.INTERNET_SUCCESS:
+								Toast.makeText(getActivity(), "result:" + result.getResult().substring(3),
+										Toast.LENGTH_SHORT).show();
+								String text = result.getResult().substring(3);
+								captureResult.setText("result:" + text);
 
-		@Override
-		protected String doInBackground(String... params) {
-			String result = null;
-			qrCode = params[0];
-			Log.i(TAG, "qrCode:" + qrCode);
-			String publicKey = getPublicKeyStringFromPemFormat();
-			Log.i(TAG, "publicKey:" + publicKey);
-			if (!TextUtils.isEmpty(publicKey)){
-				result = encryptRSA(publicKey, qrCode);
-				Log.i(TAG, "result:" + result);
-			}
-			return result;
-		}
-
-		@Override
-		protected void onPostExecute(String result) {
-			super.onPostExecute(result);
-			if (!TextUtils.isEmpty(result)) {
-				onValidateSuccessed(result);
-			} else {
-				onValidateFailed("失败");
-			}
-			restartPreviewAfterDelay(1000);
-		}
-		
-		private void beforeValidate(){
-			captureResultInfo.setVisibility(View.GONE);
-			statusImage.setVisibility(View.GONE);
-			statusText.setText("已扫描，正在处理中");
-			notFound.setVisibility(View.GONE);
-			progress.setVisibility(View.VISIBLE);
-		}
-		
-		private void onValidateSuccessed(String name){
-			beepManager.playBeepSoundAndVibrate(true);
-			// 成功
-			progress.setVisibility(View.GONE);
-			notFound.setVisibility(View.GONE);
-			captureResultInfo.setVisibility(View.VISIBLE);
-			captureResultName.setText(name);
-			statusImage.setVisibility(View.VISIBLE);
-			statusImage.setImageResource(R.mipmap.scan_img_pass);
-			statusText.setText("成功");
-		}
-
-		private void onValidateFailed(String reason){
-			beepManager.playBeepSoundAndVibrate(false);
-			// 失败
-			progress.setVisibility(View.GONE);
-			notFound.setVisibility(View.VISIBLE);
-			notFound.setText(reason);
-			captureResultInfo.setVisibility(View.GONE);
-			captureResultName.setText("");
-			captureResultDate.setText("");
-			captureResultSchedule.setText("");
-			statusImage.setVisibility(View.VISIBLE);
-			statusImage.setImageResource(R.mipmap.scan_img_fail);
-			statusText.setText("失败");
-		}
-		
-		public String encryptRSA(String keyString, String toDecryptStr) {
-			String result = null;
-			try {
-				// converts the String to a PublicKey instance
-				byte[] keyBytes = Base64.decode(keyString.getBytes("UTF-8"), Base64.NO_WRAP);
-				Log.i(TAG, "key length=" + keyBytes.length);
-				X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-				KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-				PublicKey key = keyFactory.generatePublic(spec);
-
-				// decrypts the message
-				Cipher cipher = Cipher.getInstance("RSA/None/PKCS1Padding");
-				cipher.init(Cipher.DECRYPT_MODE, key);
-				byte[] toDecryptBytes = Base64.decode(toDecryptStr, Base64.NO_WRAP);
-				Log.i(TAG, "toDecrypt length=" + toDecryptBytes.length);
-				byte[] dectypted = cipher.doFinal(toDecryptBytes);
-				result = new String(dectypted, "utf-8");
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
-			return result;
-		}
-		
-		private String getPublicKeyStringFromPemFormat(){
-			StringBuffer content = new StringBuffer();
-			String filesDir = null;
-			try {
-				filesDir = getActivity().getFilesDir().getAbsolutePath();
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-			if (!TextUtils.isEmpty(filesDir)){
-				String destFilePath = filesDir + File.separator + "KEY";
-				
-				File destFile = new File(destFilePath);
-				if (destFile.exists()) {
-					try{
-						InputStream input = new FileInputStream(destFile);
-						InputStreamReader read = new InputStreamReader(input, "utf-8");
-						BufferedReader pemReader = new BufferedReader(read);
-						String line = null;
-						while ((line = pemReader.readLine()) != null) {
-							if (line.indexOf("-----BEGIN PUBLIC KEY-----") != -1) {
-								while ((line = pemReader.readLine()) != null) {
-									if (line.indexOf("-----END PUBLIC KEY") != -1) {
-										break;
-									}
-									content.append(line.trim());
+								if (TextUtils.isEmpty(text))
+								{
+									Toast.makeText(getActivity(), "Recognized nothing, waiting for next.", Toast.LENGTH_SHORT).show();
 								}
 								break;
-							}
+							case HttpResult.INTERNET_EXCEPTION:
+								// 网络异常
+								Toast.makeText(getActivity(), result.getErrorMsg(),
+										Toast.LENGTH_SHORT).show();
+								captureResult.setText(result.getErrorMsg());
+								break;
+							default:
+								break;
 						}
-						pemReader.close();
-						read.close();
-						input.close();
-					}catch(Exception ex){
-						ex.printStackTrace();
 					}
-				}else{
-					Log.i(TAG, "PUBLIC KEY NOT FOUND");
+
+					@Override
+					public void onFailed(HttpResult result)
+					{
+						Toast.makeText(getActivity(), "Recognized failed, waiting for next.",
+								Toast.LENGTH_SHORT).show();
+						captureResult.setText("Recognized failed, waiting for next.");
+						indicatorImage.setVisibility(View.GONE);
+					}
+
+					@Override
+					public void updateProgress(int progress)
+					{
+
+					}
+				}).execute(obj);
+			} else if (msg.what == -100){
+				Toast.makeText(getActivity(),"Failed to save image file.",Toast.LENGTH_SHORT).show();
+				indicatorImage.setVisibility(View.GONE);
+			}
+		}
+	};
+
+	private class FileThread extends Thread
+	{
+		private Bitmap bmp = null;
+		private String filePath;
+
+		public FileThread(Bitmap bmp)
+		{
+			this.bmp = bmp;
+		}
+
+		@Override
+		public void run()
+		{
+			super.run();
+			try
+			{
+				if(isHaveSDCard() && bmp != null)
+				{
+					saveToSDCard(bmp);
+					bmp.recycle();
+					Message msg = new Message();
+					msg.what = 100;
+					msg.obj = filePath;
+					fileHandler.sendMessage(msg);
+				} else {
+					fileHandler.sendEmptyMessage(-100);
+				}
+			} catch (Exception e)
+			{
+				e.printStackTrace();
+				fileHandler.sendEmptyMessage(-100);
+			}
+
+		}
+
+
+		private void saveToSDCard(Bitmap bmp)
+		{
+			//生成文件
+			Date date = new Date();
+			SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss"); // 格式化时间
+			String fileName = format.format(date) + ".jpg";
+			File fileFolder = new File(Environment.getExternalStorageDirectory() + File.separator + "roadboard" + File.separator);
+			if (!fileFolder.exists())
+			{
+				fileFolder.mkdir();
+			}
+			File file = new File(fileFolder, fileName);
+			FileOutputStream topOutputStream = null;
+			try
+			{
+				topOutputStream = new FileOutputStream(file); // 文件输出流
+				bmp.compress(Bitmap.CompressFormat.JPEG, 100, topOutputStream);
+				topOutputStream.flush();
+				filePath = file.getAbsolutePath();
+			}catch (Exception e){
+				e.printStackTrace();
+			}finally
+			{
+				if (topOutputStream != null){
+					try
+					{
+						topOutputStream.close();
+					}catch (Exception e)
+					{
+					}
 				}
 			}
-			
-			return content.toString();
+		}
+
+		/**
+		 * 检验是否有SD卡
+		 *
+		 * @true or false
+		 */
+		private boolean isHaveSDCard()
+		{
+			return Environment.MEDIA_MOUNTED.equals(Environment
+					.getExternalStorageState());
 		}
 	}
+
+
 	
 	private void initCamera(SurfaceHolder surfaceHolder) {
 		if (surfaceHolder == null) {
@@ -548,10 +425,8 @@ SurfaceHolder.Callback {
 			// Creating the handler starts the preview, which can also throw a
 			// RuntimeException.
 			if (handler == null) {
-				handler = new CaptureActivityHandler(this, null,
-						null, null, cameraManager);
+				handler = new CaptureActivityHandler(this, cameraManager);
 			}
-			decodeOrStoreSavedBitmap(null, null);
 		} catch (IOException ioe) {
 			Log.w(TAG, ioe);
 			displayFrameworkBugMessageAndExit();
@@ -605,8 +480,7 @@ SurfaceHolder.Callback {
 	 * 展示状态视图和扫描窗口，隐藏结果视图
 	 */
 	private void resetStatusView() {
-		viewfinderView.setVisibility(View.VISIBLE);
-		barCodeImage.setVisibility(View.INVISIBLE);
+		indicatorImage.setVisibility(View.INVISIBLE);
 	}
 
 	public void drawViewfinder() {

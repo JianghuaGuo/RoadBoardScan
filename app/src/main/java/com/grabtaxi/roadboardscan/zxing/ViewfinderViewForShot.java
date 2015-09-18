@@ -12,7 +12,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.util.AttributeSet;
 import android.view.View;
 
-import com.google.zxing.ResultPoint;
 import com.grabtaxi.roadboardscan.R;
 import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.zxing.camera.CameraManager;

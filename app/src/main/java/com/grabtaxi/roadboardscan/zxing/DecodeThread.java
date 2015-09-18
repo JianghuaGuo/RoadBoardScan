@@ -30,9 +30,8 @@ import com.grabtaxi.roadboardscan.fragment.CaptureFragment;
  */
 public final class DecodeThread extends Thread {
 
-    public static final String BARCODE_BITMAP = "barcode_bitmap";
+    public static final String CONTENT_BITMAP = "content_bitmap";
 
-    public static final String BARCODE_SCALED_FACTOR = "barcode_scaled_factor";
     private final CaptureFragment mFragment;
 
     private Handler handler;

@@ -16,19 +16,21 @@
 
 package com.grabtaxi.roadboardscan.zxing;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Map;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.DecodeHintType;
-import com.google.zxing.Result;
 import com.grabtaxi.roadboardscan.R;
 import com.grabtaxi.roadboardscan.fragment.CaptureFragment;
 import com.grabtaxi.roadboardscan.zxing.camera.CameraManager;
@@ -74,13 +76,15 @@ public final class CaptureActivityHandler extends Handler {
         DONE
     }
 
-    public CaptureActivityHandler(CaptureFragment fragment, Collection<BarcodeFormat> decodeFormats,
-            Map<DecodeHintType, ?> baseHints, String characterSet, CameraManager cameraManager) {
+//    public CaptureActivityHandler(CaptureFragment fragment, Collection<BarcodeFormat> decodeFormats,
+//            Map<DecodeHintType, ?> baseHints, String characterSet, CameraManager cameraManager) {
+    public CaptureActivityHandler(CaptureFragment fragment, CameraManager cameraManager) {
         this.mFragment = fragment;
         
         // 启动扫描线程
-        decodeThread = new DecodeThread(mFragment, decodeFormats, baseHints, characterSet,
-                new ViewfinderResultPointCallback(mFragment.getViewfinderView()));
+//        decodeThread = new DecodeThread(mFragment, decodeFormats, baseHints, characterSet,
+//                new ViewfinderResultPointCallback(mFragment.getViewfinderView()));
+        decodeThread = new DecodeThread(mFragment);
         decodeThread.start();
         
         state = State.SUCCESS;
@@ -106,26 +110,15 @@ public final class CaptureActivityHandler extends Handler {
                 Log.i(TAG, "Got decode succeeded message");
                 state = State.SUCCESS;
                 Bundle bundle = message.getData();
-                Bitmap barcode = null;
-                float scaleFactor = 1.0f;
-//              Rect frameRect = cameraManager.getFramingRect();
+                Bitmap contentBmp = null;
                 if (bundle != null) {
-                    byte[] compressedBitmap = bundle.getByteArray(DecodeThread.BARCODE_BITMAP);
+                    byte[] compressedBitmap = bundle.getByteArray(DecodeThread.CONTENT_BITMAP);
                     if (compressedBitmap != null) {
-                        barcode = BitmapFactory.decodeByteArray(compressedBitmap, 0,
+                        contentBmp = BitmapFactory.decodeByteArray(compressedBitmap, 0,
                                 compressedBitmap.length, null);
-                        // Mutable copy:
-                        barcode = barcode.copy(Bitmap.Config.ARGB_8888, true);
+                        mFragment.handleDecodeSuccess(contentBmp);
                     }
-                    scaleFactor = bundle.getFloat(DecodeThread.BARCODE_SCALED_FACTOR);
-//                    if (frameRect.width()/ barcode.getWidth() < frameRect.height() /barcode.getHeight()){
-//                    	scaleFactor = frameRect.width()/ barcode.getWidth();
-//                    }else{
-//                    	scaleFactor = frameRect.height() /barcode.getHeight();
-//                    }
                 }
-                mFragment.handleDecodeSuccess((Result) message.obj, barcode, scaleFactor);
-//              activity.handleDecode((Result) message.obj, ThumbnailUtils.extractThumbnail(barcode, frameRect.width(), frameRect.height()), scaleFactor);
                 break;
             case R.id.decode_failed:
             	Log.i(TAG, "Got decode failed message");
@@ -167,5 +160,4 @@ public final class CaptureActivityHandler extends Handler {
             mFragment.drawViewfinder();
         }
     }
-
 }

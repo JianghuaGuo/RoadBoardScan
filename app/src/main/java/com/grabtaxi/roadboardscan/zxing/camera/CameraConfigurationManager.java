@@ -1,5 +1,6 @@
 package com.grabtaxi.roadboardscan.zxing.camera;
 
+import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.hardware.Camera;
@@ -7,6 +8,9 @@ import android.util.Log;
 
 import com.google.zxing.client.android.camera.CameraConfigurationUtils;
 import com.grabtaxi.roadboardscan.common.GlobalVariables;
+
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * A class which deals with reading, parsing, and setting the camera parameters
@@ -40,6 +44,27 @@ public final class CameraConfigurationManager {
 		Camera.Parameters parameters = camera.getParameters();
 		Log.i(TAG, "Default preview format: " + parameters.getPreviewFormat()
 				+ '/' + parameters.get("preview-format"));
+
+		Log.i(TAG, "SupportedPictureFormats:" + parameters.getSupportedPictureFormats());
+		List rawSupportedPictureSizes = parameters.getSupportedPictureSizes();
+		StringBuilder strPictureSize = new StringBuilder();
+		Iterator pictureSizeIter = rawSupportedPictureSizes.iterator();
+
+		while(pictureSizeIter.hasNext()) {
+			Camera.Size it = (Camera.Size)pictureSizeIter.next();
+			strPictureSize.append(it.width).append('x').append(it.height).append(' ');
+		}
+		Log.i(TAG, "SupportedPictureSizes:" + strPictureSize);
+		Log.i(TAG, "SupportedPreviewFormats:" + parameters.getSupportedPreviewFormats());
+		List rawSupportedPreviewSizes = parameters.getSupportedPreviewSizes();
+		StringBuilder strPreviewSize = new StringBuilder();
+		Iterator previewSizeIter = rawSupportedPreviewSizes.iterator();
+
+		while(previewSizeIter.hasNext()) {
+			Camera.Size it = (Camera.Size)previewSizeIter.next();
+			strPreviewSize.append(it.width).append('x').append(it.height).append(' ');
+		}
+		Log.i(TAG, "SupportedPreviewSizes:" + strPreviewSize);
 		screenResolution = new Point(GlobalVariables.SCREEN_WIDTH, GlobalVariables.SCREEN_HEIGHT);
 		Log.i(TAG, "Screen resolution: " + screenResolution);
 		// preview size is always like 480*320,other 320*480
@@ -130,9 +155,11 @@ public final class CameraConfigurationManager {
 			CameraConfigurationUtils.setVideoStabilization(parameters);
 			CameraConfigurationUtils.setFocusArea(parameters);
 			CameraConfigurationUtils.setMetering(parameters);
-
 		}
 
+//		parameters.setPictureFormat(PixelFormat.JPEG);
+//		parameters.setPictureSize(cameraResolution.x, cameraResolution.y);
+//		parameters.setJpegQuality(100);
 		parameters.setPreviewSize(cameraResolution.x, cameraResolution.y);
 		Log.i(TAG, "Final camera parameters: " + parameters.flatten());
 		camera.setParameters(parameters);

@@ -41,8 +41,8 @@ public class MainActivity extends AppCompatActivity
     protected void onResume() {
         Log.d(TAG, "onResume");
         super.onResume();
-//        showCaptureFragment();
-        showCaptureFragmentForShot();
+        showCaptureFragment();
+//        showCaptureFragmentForShot();
     }
 
     private void showCaptureFragment() {

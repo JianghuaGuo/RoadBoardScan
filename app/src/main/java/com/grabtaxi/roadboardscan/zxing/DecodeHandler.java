@@ -17,38 +17,40 @@
 package com.grabtaxi.roadboardscan.zxing;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Map;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.DecodeHintType;
-import com.google.zxing.MultiFormatReader;
-import com.google.zxing.PlanarYUVLuminanceSource;
-import com.google.zxing.ReaderException;
-import com.google.zxing.Result;
-import com.google.zxing.common.HybridBinarizer;
 import com.grabtaxi.roadboardscan.R;
+import com.grabtaxi.roadboardscan.common.GlobalVariables;
 import com.grabtaxi.roadboardscan.fragment.CaptureFragment;
+import com.grabtaxi.roadboardscan.zxing.camera.CameraManager;
 
-final class DecodeHandler extends Handler {
+public final class DecodeHandler extends Handler {
 
     private static final String TAG = DecodeHandler.class.getSimpleName();
 
     private final CaptureFragment mFragment;
 
-    private final MultiFormatReader multiFormatReader;
-
     private boolean running = true;
 
-    DecodeHandler(CaptureFragment fragment, Map<DecodeHintType, Object> hints) {
-        multiFormatReader = new MultiFormatReader();
-        multiFormatReader.setHints(hints);
+    DecodeHandler(CaptureFragment fragment) {
         this.mFragment = fragment;
     }
 
@@ -78,42 +80,37 @@ final class DecodeHandler extends Handler {
      * @param height The height of the preview frame.
      */
     private void decode(byte[] data, int width, int height) {
-    	Log.i(TAG,"decode:" + data.length + " width:" + width + ", height:" + height);
+    	Log.i(TAG, "decode:" + data.length + " width:" + width + ", height:" + height);
         long start = System.currentTimeMillis();
-        Result rawResult = null;
-        // 新增反转数据代码开始
-        byte[] rotatedData = new byte[data.length];
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++)
-                rotatedData[x * height + height - y - 1] = data[x + y * width];
-        }
-        int tmp = width; 
-        width = height;
-        height = tmp;
-        // 新增结束
-        PlanarYUVLuminanceSource source = mFragment.getCameraManager().buildLuminanceSource(rotatedData,
-                width, height);
-        if (source != null) {
-            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
-            try {
-                // 预览界面最终取到的是个bitmap，然后对其进行解码
-                rawResult = multiFormatReader.decodeWithState(bitmap);
-            } catch (ReaderException re) {
-            	re.printStackTrace();
-            } finally {
-                multiFormatReader.reset();
-            }
-        }
 
+        // 将YUV格式的数据转换成位图
+        YuvImage yuvimage = new YuvImage(data, ImageFormat.NV21, width, height, null);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        yuvimage.compressToJpeg(new Rect(0, 0, width, height), 100, baos);
+        byte[] rgb = baos.toByteArray();
+
+        Matrix matrix = new Matrix();
+        matrix.reset();
+        matrix.postRotate(90);
+        Bitmap origin = BitmapFactory.decodeByteArray(rgb, 0, rgb.length);
+        Bitmap b =  Bitmap.createBitmap(origin, 0, 0, origin.getWidth(),
+                origin.getHeight(), matrix, true);
+
+        // 去除扫描窗口部分的位图信息
+        Rect rectInPreview = mFragment.getCameraManager().getFramingRectInPreview();
+        Bitmap contentBmp = Bitmap.createBitmap(b, rectInPreview.left, rectInPreview.top, rectInPreview.width(), rectInPreview.height());
+        // 逐个像素判断，看是否符合路牌的颜色范围
+        boolean isValidRoadIndicator = isValidIndicator(contentBmp);
         Handler handler = mFragment.getHandler();
-        if (rawResult != null) {
-            // Don't log the barcode contents for security.
+        if (isValidRoadIndicator) {
             long end = System.currentTimeMillis();
-            Log.i(TAG, "Found barcode in " + (end - start) + " ms");
+            Log.i(TAG, "Found valid road indicarot in " + (end - start) + " ms");
             if (handler != null) {
-                Message message = Message.obtain(handler, R.id.decode_succeeded, rawResult);
+                Message message = Message.obtain(handler, R.id.decode_succeeded);
                 Bundle bundle = new Bundle();
-                bundleThumbnail(source, bundle);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                contentBmp.compress(Bitmap.CompressFormat.JPEG, 100, out);
+                bundle.putByteArray(DecodeThread.CONTENT_BITMAP, out.toByteArray());
                 message.setData(bundle);
                 message.sendToTarget();
             }
@@ -123,19 +120,44 @@ final class DecodeHandler extends Handler {
                 message.sendToTarget();
             }
         }
+        if (contentBmp != null){
+            contentBmp.recycle();
+        }
     }
 
-    private static void bundleThumbnail(PlanarYUVLuminanceSource source, Bundle bundle) {
-        int[] pixels = source.renderThumbnail();
-        int width = source.getThumbnailWidth();
-        int height = source.getThumbnailHeight();
-        Log.i(TAG, "bundleThumbnail, renderThumbnail pixs length:" + pixels.length + ",width:" + width + ",height:" + height);
-        Bitmap bitmap = Bitmap.createBitmap(pixels, 0, width, width, height,
-                Bitmap.Config.ARGB_8888);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out);
-        bundle.putByteArray(DecodeThread.BARCODE_BITMAP, out.toByteArray());
-        bundle.putFloat(DecodeThread.BARCODE_SCALED_FACTOR, (float) width / source.getWidth());
+    private boolean isValidIndicator(Bitmap bmp){
+        int w = bmp.getWidth();
+        int h = bmp.getHeight();
+        int valid = 0;
+        for (int i = 0 ; i < w; i ++){
+            for (int j = 0 ; j < h ; j ++){
+                int color = bmp.getPixel(i, j);
+                int[] argb = intToByteArray(color);
+                if ((10 < argb[1] && argb[1] < 50) && (150 < argb[2] && argb[2] < 250) && (100 < argb[3] && argb[3] <200))
+                {
+                    valid ++;
+                } else if ((200 < argb[1] && argb[1] < 255) && (200 < argb[2] && argb[2] < 255) && (200 < argb[3] && argb[3] < 255)){
+                    valid ++;
+                }
+            }
+        }
+        int percent = (valid * 100) / (w * h);
+        Log.e(TAG, "w:" + w + " h:" + h + " valid:" + valid + " percent:" + percent);
+        if (percent > 50){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    public static int[] intToByteArray(int i) {
+        int[] result = new int[4];
+        //由高位到低位
+        result[0] = ((i >> 24) & 0xFF);
+        result[1] = ((i >> 16) & 0xFF);
+        result[2] = ((i >> 8) & 0xFF);
+        result[3] = (i & 0xFF);
+        return result;
     }
 
 }
