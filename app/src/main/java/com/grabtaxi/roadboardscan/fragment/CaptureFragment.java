@@ -1,35 +1,21 @@
 package com.grabtaxi.roadboardscan.fragment;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.security.KeyFactory;
-import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-
-import javax.crypto.Cipher;
 
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
-import android.graphics.Rect;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
-import android.util.Base64;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.SurfaceHolder;
@@ -40,8 +26,6 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -54,8 +38,7 @@ import network.HttpResult;
 import network.HttpResultListener;
 import network.UploadImageRequestTask;
 
-public class CaptureFragment extends BaseFragment  implements
-SurfaceHolder.Callback {
+public class CaptureFragment extends BaseFragment  implements SurfaceHolder.Callback {
 	private final String TAG = getClass().getSimpleName();
 	private LayoutInflater inflater;
 	private CameraManager cameraManager;
@@ -65,18 +48,12 @@ SurfaceHolder.Callback {
 	private ViewfinderView viewfinderView;
 	private SurfaceView surfaceView;
 	private TextView captureFlash;
-	// 扫描提示，例如"请将条码置于取景框内扫描"之类的提示
 	private TextView captureDesc;
 	private TextView captureResult;
 	// 显示扫描截图
 	private ImageView indicatorImage;
 
 	private boolean hasSurface;
-
-	/**
-	 * 闪光灯调节器。自动检测环境光线强弱并决定是否开启闪光灯
-	 */
-//	private AmbientLightManager ambientLightManager;
 
 	public ViewfinderView getViewfinderView() {
 		return viewfinderView;
@@ -106,7 +83,7 @@ SurfaceHolder.Callback {
 			Bundle savedInstanceState) {
 		Log.i(TAG, "onCreateView");
 		this.inflater = inflater;
-		View view = inflater.inflate(R.layout.main_route_capture_frag, container,false);
+		View view = inflater.inflate(R.layout.capture_frag, container,false);
 		captureFlash= (TextView) view.findViewById(R.id.capture_flash);
 		captureDesc = (TextView) view.findViewById(R.id.capture_desc);
 		captureResult = (TextView) view.findViewById(R.id.capture_result);
@@ -129,9 +106,7 @@ SurfaceHolder.Callback {
 			
 		});
 		
-		// 这里仅仅是对各个组件进行简单的创建动作，真正的初始化动作放在onResume中
 		hasSurface = false;
-//		ambientLightManager = new AmbientLightManager(getActivity());
 		return view;
 	}
 
@@ -255,9 +230,7 @@ SurfaceHolder.Callback {
 	/**
 	 * 该方法会将最终处理的结果展示到result_view上。并且如果选择了"检索更多信息"则会内部对结果进行进一步的查询
 	 * 
-	 * @param rawResult
-	 * @param resultHandler
-	 * @param barcode
+	 * @param content
 	 */
 	public void handleDecodeSuccess(Bitmap content) {
 		if (content != null) {

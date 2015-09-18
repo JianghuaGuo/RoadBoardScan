@@ -157,9 +157,6 @@ public final class CameraConfigurationManager {
 			CameraConfigurationUtils.setMetering(parameters);
 		}
 
-//		parameters.setPictureFormat(PixelFormat.JPEG);
-//		parameters.setPictureSize(cameraResolution.x, cameraResolution.y);
-//		parameters.setJpegQuality(100);
 		parameters.setPreviewSize(cameraResolution.x, cameraResolution.y);
 		Log.i(TAG, "Final camera parameters: " + parameters.flatten());
 		camera.setParameters(parameters);
